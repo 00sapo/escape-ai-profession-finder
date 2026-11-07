@@ -1,0 +1,10 @@
+coverage/
+data/raw/
+.DS_Store
+*.log
+node_modules/
+playwright-report/
+*.pyc
+__pycache__/
+test-results/
+.venv/

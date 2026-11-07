@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escape AI - Profession Finder</title>
+<meta name="description" content="Escape AI - Profession Finder: descrivi il tuo lavoro con le attività O*NET e confronta la tua resilienza all'AI secondo l'indice OCSE 2026.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main" data-i18n="app.skip">Vai al contenuto</a>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-titles">
+      <p class="brand" data-i18n="app.brand">Escape AI - Profession Finder</p>
+      <p class="source" data-i18n="app.source">Dati O*NET 31.0 e OCSE 2026</p>
+    </div>
+    <div class="lang-switch">
+      <label class="visually-hidden" for="locale" data-i18n="app.language">Lingua</label>
+      <select id="locale" class="lang-select">
+        <option value="it" lang="it">Italiano</option>
+        <option value="en" lang="en">English</option>
+        <option value="es" lang="es">Español</option>
+        <option value="fr" lang="fr">Français</option>
+        <option value="zh" lang="zh">中文</option>
+        <option value="ar" lang="ar">العربية</option>
+        <option value="hi" lang="hi">हिन्दी</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+
+  <section id="screen-intro" class="screen" aria-labelledby="intro-title">
+    <h1 id="intro-title" data-i18n="intro.title">Quanto è esposto il tuo lavoro all'AI?</h1>
+    <p class="lead" data-i18n="intro.lead">
+      Cerca una o più professioni, scegli dalle loro attività quelle che svolgi e
+      ordinale per priorità: il risultato è il gap OCSE del tuo profilo.
+    </p>
+    <ul class="plain-list">
+      <li data-i18n="intro.point1">Il punteggio è calcolato nel browser dai dati O*NET e OCSE inclusi nella pagina.</li>
+      <li data-i18n="intro.point2">Nessun dato lascia il tuo dispositivo e nessuna richiesta di rete parte dalla pagina.</li>
+      <li data-i18n="intro.point3">L'ordine delle attività è la priorità: disattiva quelle che non svolgi e disponi le altre dall'alto in basso.</li>
+    </ul>
+    <section class="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title" data-i18n="sources.title">Fonti</h2>
+      <dl class="sources-list">
+        <div class="source-row">
+          <dt data-i18n="sources.onetName">O*NET</dt>
+          <dd data-i18n="sources.onetText">La banca dati delle professioni del Dipartimento del Lavoro degli Stati Uniti: descrive 1016 professioni e le attività che ciascuna richiede.</dd>
+          <dd>
+            <a class="source-link" href="https://www.onetcenter.org/" target="_blank" rel="noopener">
+              <span data-i18n="sources.onetLink">Apri il sito O*NET</span><span class="visually-hidden" data-i18n="sources.newTab"> (si apre in una nuova scheda)</span>
+            </a>
+          </dd>
+        </div>
+        <div class="source-row">
+          <dt data-i18n="sources.gapName">AI Capability Gap Index</dt>
+          <dd data-i18n="sources.gapText">Pubblicato dall&#x27;OCSE nel 2026, misura la distanza tra ciò che richiede una professione e ciò che l&#x27;IA sa fare oggi in nove domini di capacità. Un valore più basso indica maggiore esposizione.</dd>
+          <dd>
+            <a class="source-link" href="https://aicapabilityindicators.oecd.org/" target="_blank" rel="noopener">
+              <span data-i18n="sources.gapLink">Apri l&#x27;indice OCSE</span><span class="visually-hidden" data-i18n="sources.newTab"> (si apre in una nuova scheda)</span>
+            </a>
+          </dd>
+          <dd>
+            <a class="source-link" href="https://doi.org/10.1787/f3da0f0a-en" target="_blank" rel="noopener">
+              <span data-i18n="sources.paperLink">Leggi il paper OCSE</span><span class="visually-hidden" data-i18n="sources.newTab"> (si apre in una nuova scheda)</span>
+            </a>
+          </dd>
+        </div>
+      </dl>
+      <p data-i18n="sources.independence">Entrambe le fonti provengono da istituzioni pubbliche, non da aziende che vendono IA. Il punteggio non si basa quindi su benchmark, valutazioni o materiale promozionale pubblicati dai fornitori di IA.</p>
+      <p data-i18n="sources.caveat">Il gap si può leggere anche come una misura di resilienza della professione alle tecnologie di IA attuali. Non tiene conto però degli effetti indiretti del cambiamento che l&#x27;IA introduce. Per esempio, impianti elettrici più ottimizzati riducono i guasti e quindi la domanda di elettricisti.</p>
+    </section>
+
+    <p class="legend" id="direction-legend" data-i18n="intro.legend">
+      Un valore più basso dell'AI Capability Gap OCSE indica maggiore esposizione.
+    </p>
+    <button id="start-occupations" class="button button-primary" type="button" data-i18n="occupations.title">Scegli le professioni</button>
+  </section>
+
+  <section id="screen-occupations" class="screen" hidden aria-labelledby="occupations-title">
+    <h2 id="occupations-title" data-i18n="occupations.title">Scegli le professioni</h2>
+    <p class="hint" data-i18n="occupations.hint">
+      Cerca per titolo. Le attività di tutte le professioni scelte formeranno un
+      unico elenco.
+    </p>
+    <div class="field">
+      <label for="occupation-search" data-i18n="occupations.searchLabel">Cerca una professione</label>
+      <input id="occupation-search" type="search" autocomplete="off"
+             placeholder="Per esempio: analista"
+             data-i18n-placeholder="occupations.searchPlaceholder"
+             aria-describedby="occupation-count">
+    </div>
+    <p id="occupation-count" class="hint" role="status" aria-live="polite"></p>
+    <ul id="occupation-results" class="occupation-results"></ul>
+
+    <h3 data-i18n="occupations.selected">Professioni scelte</h3>
+    <ul id="selected-occupations" class="selected-occupations"></ul>
+
+    <div class="actions">
+      <button id="occupations-continue" class="button button-primary" type="button" disabled data-i18n="occupations.continue">Continua</button>
+    </div>
+  </section>
+
+  <section id="screen-activities" class="screen" hidden aria-labelledby="activities-title">
+    <h2 id="activities-title" data-i18n="activities.title">Le tue attività</h2>
+    <p class="hint" data-i18n="activities.hint">
+      L'ordine è la priorità: l'attività in alto conta di più. Disattiva quelle
+      che non svolgi.
+    </p>
+    <ul id="activity-list" class="activity-list" aria-labelledby="activities-title"></ul>
+    <div class="actions">
+      <button id="activities-back" class="button" type="button" data-i18n="activities.back">Indietro</button>
+      <button id="activities-done" class="button button-primary" type="button" data-i18n="activities.done">Vedi i risultati</button>
+    </div>
+  </section>
+
+  <section id="screen-results" class="screen" hidden aria-labelledby="results-title">
+    <h2 id="results-title" data-i18n="results.title">Il tuo profilo</h2>
+
+    <div class="score-panel">
+      <p class="score-label" data-i18n="results.scoreLabel">AI Capability Gap OCSE stimato</p>
+      <p id="score-value" class="score-value">0,00</p>
+      <p id="score-scale" class="score-scale" data-i18n="results.scale">Un valore più basso indica meno resilienza, quindi maggiore esposizione.</p>
+      <p id="score-uncertainty" class="score-gap"></p>
+    </div>
+
+    <p class="legend" id="results-legend" data-i18n="results.legend">
+      Un valore più basso dell'AI Capability Gap OCSE indica maggiore esposizione.
+    </p>
+
+    <h3 id="histogram-title" data-i18n="results.histogram">Professioni per fascia di gap OCSE</h3>
+    <div id="gap-histogram" class="gap-histogram" role="group" aria-labelledby="histogram-title">
+      <div id="histogram-bars" class="histogram-bars"></div>
+      <div class="histogram-axis">
+        <span><span id="histogram-axis-left"></span> <span id="histogram-label-left" data-i18n="histogram.lessResilient"></span></span>
+        <span><span id="histogram-label-right" data-i18n="histogram.moreResilient"></span> <span id="histogram-axis-right"></span></span>
+      </div>
+      <div class="histogram-axis histogram-axis-names">
+        <span id="histogram-left-occupation"></span>
+        <span id="histogram-right-occupation"></span>
+      </div>
+    </div>
+    <p id="histogram-caption" class="hint" role="status" aria-live="polite"></p>
+
+    <h3 data-i18n="results.representatives">Professioni rappresentative</h3>
+    <ul id="representatives" class="representatives"></ul>
+
+    <h3 data-i18n="results.filters">Filtri</h3>
+    <div class="filters">
+      <div class="field">
+        <label for="filter-exposure">
+          <span data-i18n="results.filterResilience">AI Capability GAP minimo (resilienza)</span>
+          <output id="filter-exposure-value" for="filter-exposure">0,00</output>
+        </label>
+        <input id="filter-exposure" type="range" min="0" max="11.71" step="0.01" value="0">
+      </div>
+      <div class="field">
+        <label for="filter-similarity">
+          <span data-i18n="results.filterSimilarity">Somiglianza minima:</span>
+          <output id="filter-similarity-value" for="filter-similarity">0%</output>
+        </label>
+        <input id="filter-similarity" type="range" min="0" max="1" step="0.01" value="0">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="results-back" class="button" type="button" data-i18n="activities.back">Indietro</button>
+      <button id="export" class="button" type="button" data-i18n="results.export">Esporta CSV</button>
+      <button id="restart" class="button" type="button" data-i18n="results.restart">Ricomincia</button>
+    </div>
+
+    <h3 data-i18n="results.ranking">Classifica per somiglianza</h3>
+    <p id="ranking-count" class="hint" role="status" aria-live="polite"></p>
+    <ol id="ranking" class="ranking"></ol>
+    <button id="more" class="button" type="button" hidden data-i18n="results.more">Mostra altre professioni</button>
+  </section>
+
+</main>
+
+<dialog id="activity-info" class="info-panel" aria-labelledby="activity-info-title">
+  <h2 id="activity-info-title" data-i18n="info.title">Dettagli dell'attività</h2>
+  <dl class="info-facts">
+    <dt data-i18n="info.area">Area principale</dt>
+    <dd id="activity-info-area"></dd>
+    <dt data-i18n="info.group">Gruppo di attività</dt>
+    <dd id="activity-info-group"></dd>
+    <dt data-i18n="info.activity">Attività</dt>
+    <dd id="activity-info-activity"></dd>
+  </dl>
+  <p id="activity-info-text"></p>
+  <div id="activity-info-occupations" class="info-occupations"></div>
+  <button id="activity-info-close" class="button" type="button" data-i18n="info.close">Chiudi</button>
+</dialog>
+
+<footer class="footer">
+  <p data-i18n="footer.text">
+    Dati: O*NET 31.0 e OCSE, The OECD AI exposure measure,
+    OECD Artificial Intelligence Papers No. 59, 2026.
+    Il punteggio descrive l'esposizione potenziale, non il rischio di perdere il lavoro.
+  </p>
+</footer>
+
+<script src="data/dataset.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/model.js"></script>
+<script src="js/fuzzy.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
