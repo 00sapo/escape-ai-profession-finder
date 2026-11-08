@@ -250,7 +250,7 @@ function main() {
   }
 
   const report = {
-    generated: new Date().toISOString(),
+    generated: bundle.meta.generated,
     thresholds: THRESHOLDS,
     split: { tuning: tuning.length, heldout: heldout.length },
     parameters: best,
