@@ -498,6 +498,12 @@ summary:focus-visible {
   cursor: pointer;
 }
 
+.translation-source {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .dwa-parent {
   font-size: 0.8rem;
   color: var(--muted);

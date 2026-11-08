@@ -45,6 +45,8 @@ OECD_URL = (
 
 DATASET_GZ = os.path.join(DIST, "dataset.json.gz")
 DATASET_JS = os.path.join(WEB_DATA, "dataset.js")
+TRANSLATIONS_DIR = os.path.join(WEB_DATA, "translations")
+TRANSLATION_LOCALES = ["it", "es", "fr", "zh", "ar", "hi"]
 MATCH_REPORT = os.path.join(DIST, "match_report.json")
 
 SCHEMA_VERSION = 1
@@ -120,9 +122,27 @@ def load_oecd() -> dict[str, dict]:
     return scores
 
 
+def load_translations() -> dict:
+    """Optional machine translations. Missing files or strings fall back to English."""
+    translations = {}
+    for locale in TRANSLATION_LOCALES:
+        path = os.path.join(TRANSLATIONS_DIR, locale + ".json")
+        if not os.path.exists(path):
+            translations[locale] = {"occupations": {}, "activities": {}}
+            continue
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        translations[locale] = {
+            "occupations": {key: value for key, value in data.get("occupations", {}).items() if value},
+            "activities": {key: value for key, value in data.get("activities", {}).items() if value},
+        }
+    return translations
+
+
 def build() -> dict:
     onet = load_onet()
     oecd = load_oecd()
+    translations = load_translations()
 
     joined = sorted(code for code in oecd if code in onet["occupation_dwa"] and code in onet["occupations"])
     missing_score = sorted(code for code in onet["occupations"] if code not in oecd)
@@ -148,22 +168,36 @@ def build() -> dict:
         if iwa not in iwa_index:
             iwa_index[iwa] = len(iwa_ids)
             iwa_ids.append(iwa)
-        dwas.append({"i": dwa, "n": label, "g": gwa_index[gwa], "w": iwa_index[iwa]})
+        entry = {"i": dwa, "n": label, "g": gwa_index[gwa], "w": iwa_index[iwa]}
+        translated = {
+            locale: values["activities"][dwa]
+            for locale, values in translations.items()
+            if values["activities"].get(dwa)
+        }
+        if translated:
+            entry["tr"] = translated
+        dwas.append(entry)
 
     occupations = []
     for code in joined:
         info = onet["occupations"][code]
         score = oecd[code]
-        occupations.append(
-            {
-                "c": code,
-                "t": info["title"],
-                "d": info["description"],
-                "g": round(score["gap"], 4),
-                "e": round(score["exposure"], 4),
-                "dwa": sorted(dwa_index[dwa] for dwa in onet["occupation_dwa"][code]),
-            }
-        )
+        entry = {
+            "c": code,
+            "t": info["title"],
+            "d": info["description"],
+            "g": round(score["gap"], 4),
+            "e": round(score["exposure"], 4),
+            "dwa": sorted(dwa_index[dwa] for dwa in onet["occupation_dwa"][code]),
+        }
+        translated = {
+            locale: values["occupations"][code]
+            for locale, values in translations.items()
+            if values["occupations"].get(code)
+        }
+        if translated:
+            entry["tr"] = translated
+        occupations.append(entry)
 
     counts = [len(entry["dwa"]) for entry in occupations]
     median = statistics.median(counts)
@@ -187,6 +221,13 @@ def build() -> dict:
                     "date": "2026-05-26",
                     "url": OECD_URL,
                 },
+            },
+            "translations": {
+                locale: {
+                    "occupations": len(values["occupations"]),
+                    "activities": len(values["activities"]),
+                }
+                for locale, values in translations.items()
             },
             "n_occupations": len(occupations),
             "n_dwas": len(dwas),

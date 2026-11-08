@@ -10,8 +10,9 @@
     "validate": "node validation/run_validation.js",
     "check:tuning": "node validation/check_tuning.js",
     "test:ui": "playwright test",
-    "verify": "npm run check:data && npm run check:tuning && npm run check:i18n && npm run validate && npm run test:ui",
-    "check:i18n": "node tools/check_i18n.js"
+    "verify": "npm run check:data && npm run check:tuning && npm run check:i18n && npm run check:translations && npm run validate && npm run test:ui",
+    "check:i18n": "node tools/check_i18n.js",
+    "check:translations": "node tools/check_translations.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

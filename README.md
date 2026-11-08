@@ -201,9 +201,29 @@ language on the first load and keeps the choice in the URL hash, so a reload
 keeps it. The page stores nothing else. Arabic switches the page direction to
 right to left.
 
-Activity names, occupation titles and descriptions stay in the original O*NET
-text. They are source data, and a translation would no longer match the
-published classification.
+Occupation titles and activity names are machine translated at build time for
+Italian, Spanish, French, Chinese, Arabic and Hindi. Italian and Spanish were
+translated with the free MyMemory endpoint. MyMemory then hit its daily quota,
+so French, Chinese, Arabic and Hindi were completed with the
+`dict-chrome-ex` Google endpoint. The manifest records the endpoint per locale,
+and every string is cached under `data/cache/translations`. The English O*NET
+text is the reference: every missing translation falls back to it, and the
+interface shows the English original as a secondary line where a translation is
+present.
+
+The translation tables live in `web/data/translations/<locale>.json`, with
+provenance and coverage in `web/data/translations/manifest.json`. They are
+merged into the bundle as optional `tr` fields by `pipeline/build_dataset.py`.
+`npm run check:translations` fails on empty values, a locale missing from the
+manifest, or more than 20 percent of a locale's strings being identical to the
+English source, and prints coverage per locale.
+
+The build step is:
+
+```sh
+python3 tools/translate_data.py
+python3 pipeline/build_dataset.py --offline
+```
 
 To add a language, add one table to `web/js/i18n.js`, one entry to the
 `SUPPORTED` list, and one option to the select in `web/index.html`. The layout

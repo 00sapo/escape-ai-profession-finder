@@ -1,0 +1,51 @@
+{
+  "endpoint": "mixed",
+  "endpoints": {
+    "it": "mymemory",
+    "es": "mymemory",
+    "fr": "mymemory+dict-chrome-ex",
+    "zh": "dict-chrome-ex",
+    "ar": "dict-chrome-ex",
+    "hi": "dict-chrome-ex"
+  },
+  "date": "2026-11-08T00:19:06Z",
+  "status": "ok",
+  "locales": {
+    "it": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 1,
+      "total": 2963
+    },
+    "es": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 2,
+      "total": 2963
+    },
+    "fr": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 3,
+      "total": 2963
+    },
+    "zh": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 29,
+      "total": 2963
+    },
+    "ar": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 0,
+      "total": 2963
+    },
+    "hi": {
+      "occupations": 879,
+      "activities": 2084,
+      "identical": 0,
+      "total": 2963
+    }
+  }
+}

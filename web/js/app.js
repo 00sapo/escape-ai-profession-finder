@@ -72,6 +72,31 @@
     return node;
   }
 
+  function translationOf(map) {
+    if (!map) {
+      return null;
+    }
+    return map[i18n.get()] || null;
+  }
+
+  function occupationLabel(index) {
+    var entry = dataset.occupations[index];
+    return translationOf(entry.tr) || entry.t;
+  }
+
+  function activityLabel(dwaIndex) {
+    var entry = dataset.dwas[dwaIndex];
+    return translationOf(entry.tr) || entry.n;
+  }
+
+  function addSourceLine(node, english, localized) {
+    if (english && english !== localized) {
+      var source = element('span', 'translation-source', english);
+      source.lang = 'en';
+      node.appendChild(source);
+    }
+  }
+
   function prepare() {
     var i;
     for (i = 0; i < dataset.occupations.length; i += 1) {
@@ -285,15 +310,47 @@
     if (selected) {
       button.classList.add('is-selected');
     }
-    button.appendChild(element('span', 'visually-hidden', ' ' + entry.t));
+    button.appendChild(element('span', 'visually-hidden', ' ' + occupationLabel(occupationIndex) + ' ' + entry.t));
     return button;
+  }
+
+  function occupationRanking(query) {
+    var english = dataset.occupations.map(function (entry) { return entry.t; });
+    var localized = dataset.occupations.map(function (entry, index) { return occupationLabel(index); });
+    if (!query) {
+      return {
+        rows: localized
+          .map(function (title, index) { return { index: index, score: 0, label: title, title: english[index] }; })
+          .sort(function (a, b) {
+            if (a.label !== b.label) { return a.label < b.label ? -1 : 1; }
+            return a.index - b.index;
+          })
+          .slice(0, OCCUPATION_RESULT_LIMIT),
+        total: localized.length
+      };
+    }
+    var best = new Map();
+    [english, localized].forEach(function (titles) {
+      fuzzy.search(query, titles, titles.length).forEach(function (hit) {
+        best.set(hit.index, Math.max(best.get(hit.index) || 0, hit.score));
+      });
+    });
+    var ranked = Array.from(best, function (pair) {
+      return { index: pair[0], score: pair[1], label: localized[pair[0]], title: english[pair[0]] };
+    });
+    ranked.sort(function (a, b) {
+      if (b.score !== a.score) { return b.score - a.score; }
+      if (a.label !== b.label) { return a.label < b.label ? -1 : 1; }
+      return a.index - b.index;
+    });
+    return { rows: ranked.slice(0, OCCUPATION_RESULT_LIMIT), total: ranked.length };
   }
 
   function renderOccupationSearch() {
     var query = elements['occupation-search'].value.trim();
-    var titles = dataset.occupations.map(function (entry) { return entry.t; });
-    var ranked = query ? fuzzy.search(query, titles, OCCUPATION_RESULT_LIMIT) : titles.map(function (title, index) { return { index: index, score: 0, title: title }; }).sort(function (a, b) { return a.title < b.title ? -1 : a.title > b.title ? 1 : 0; }).slice(0, OCCUPATION_RESULT_LIMIT);
-    var result = { hits: ranked.map(function (hit) { return hit.index; }), scores: new Map(ranked.map(function (hit) { return [hit.index, hit.score]; })), total: query ? ranked.length : dataset.occupations.length };
+    var ranking = occupationRanking(query);
+    var ranked = ranking.rows;
+    var result = { hits: ranked.map(function (hit) { return hit.index; }), scores: new Map(ranked.map(function (hit) { return [hit.index, hit.score]; })), total: ranking.total };
     var list = elements['occupation-results'];
     list.textContent = '';
     elements['occupation-count'].textContent = t('occupations.count', {
@@ -305,7 +362,9 @@
       var item = document.createElement('li');
       item.className = 'occupation-item';
       item.setAttribute('data-occupation', entry.c);
-      item.appendChild(element('span', 'occupation-title', entry.t));
+      var titleNode = element('span', 'occupation-title', occupationLabel(occupationIndex));
+      addSourceLine(titleNode, entry.t, occupationLabel(occupationIndex));
+      item.appendChild(titleNode);
       if (query && result.scores) {
         item.appendChild(element('span', 'occupation-score', i18n.number(result.scores.get(occupationIndex) || 0, 1)));
       }
@@ -326,11 +385,13 @@
       var item = document.createElement('li');
       item.className = 'selected-occupation';
       item.setAttribute('data-occupation', entry.c);
-      item.appendChild(element('span', 'occupation-title', entry.t));
+      var titleNode = element('span', 'occupation-title', occupationLabel(occupationIndex));
+      addSourceLine(titleNode, entry.t, occupationLabel(occupationIndex));
+      item.appendChild(titleNode);
       var button = element('button', 'button occupation-remove', t('occupations.remove'));
       button.type = 'button';
       button.setAttribute('data-remove-occupation', entry.c);
-      button.appendChild(element('span', 'visually-hidden', ' ' + entry.t));
+      button.appendChild(element('span', 'visually-hidden', ' ' + occupationLabel(occupationIndex) + ' ' + entry.t));
       item.appendChild(button);
       list.appendChild(item);
     });
@@ -393,7 +454,9 @@
       var label = document.createElement('label');
       label.className = 'activity-label';
       label.htmlFor = checkbox.id;
-      label.appendChild(element('span', 'activity-name', dataset.dwas[dwaIndex].n));
+      var activityNode = element('span', 'activity-name', activityLabel(dwaIndex));
+      addSourceLine(activityNode, dataset.dwas[dwaIndex].n, activityLabel(dwaIndex));
+      label.appendChild(activityNode);
       label.appendChild(element('span', 'dwa-parent', parentText(dwaIndex)));
       var moves = element('div', 'activity-moves');
       moves.appendChild(moveButton('up', t('activity.moveUp'), position === 0));
@@ -401,7 +464,7 @@
       var info = element('button', 'info-button', 'i');
       info.type = 'button';
       info.setAttribute('data-info', String(dwaIndex));
-      info.appendChild(element('span', 'visually-hidden', ' ' + t('info.openFor', { activity: dataset.dwas[dwaIndex].n })));
+      info.appendChild(element('span', 'visually-hidden', ' ' + t('info.openFor', { activity: activityLabel(dwaIndex) })));
       row.appendChild(checkbox);
       row.appendChild(label);
       row.appendChild(moves);
@@ -662,7 +725,7 @@
     var entry = dataset.dwas[dwaIndex];
     elements['activity-info-area'].textContent = dataset.gwas[entry.g];
     elements['activity-info-group'].textContent = dataset.iwas[entry.w];
-    elements['activity-info-activity'].textContent = entry.n;
+    elements['activity-info-activity'].textContent = activityLabel(dwaIndex) + (activityLabel(dwaIndex) === entry.n ? '' : ' (' + entry.n + ')');
     elements['activity-info-text'].textContent = t('info.noDescription');
     renderInfoOccupations(dwaIndex);
   }
@@ -696,7 +759,7 @@
     order.slice(0, INFO_OCCUPATION_LIMIT).forEach(function (occupation) {
       var item = document.createElement('li');
       item.className = 'info-occupation';
-      item.appendChild(element('span', 'info-occupation-title', dataset.occupations[occupation].t));
+      item.appendChild(element('span', 'info-occupation-title', occupationLabel(occupation)));
       item.appendChild(
         element('span', 'info-occupation-gap', t('row.gap', { value: format(dataset.occupations[occupation].g) }))
       );
@@ -731,6 +794,7 @@
       return '';
     }
     var best = '';
+    var bestIndex = -1;
     for (var i = 0; i < dataset.occupations.length; i += 1) {
       if (binOfGap(dataset.occupations[i].g) !== bin) {
         continue;
@@ -738,9 +802,10 @@
       var title = dataset.occupations[i].t;
       if (best === '' || title < best) {
         best = title;
+        bestIndex = i;
       }
     }
-    return best;
+    return bestIndex >= 0 ? occupationLabel(bestIndex) : best;
   }
 
   function renderHistogram(fit) {
@@ -798,7 +863,9 @@
     fit.support.forEach(function (occupation, position) {
       var weight = fit.weights[position];
       var item = document.createElement('li');
-      item.appendChild(element('p', 'rank-title', dataset.occupations[occupation].t));
+      var repTitle = element('p', 'rank-title', occupationLabel(occupation));
+      repTitle.title = dataset.occupations[occupation].t;
+      item.appendChild(repTitle);
       item.appendChild(
         element(
           'p',
@@ -873,7 +940,9 @@
     details.style.backgroundColor = 'hsl(' + hue + ', 70%, 94%)';
     var summary = document.createElement('summary');
 
-    summary.appendChild(element('span', 'rank-title', position + '. ' + entry.t));
+    var summaryTitle = element('span', 'rank-title', position + '. ' + occupationLabel(occupation));
+    summaryTitle.title = entry.t;
+    summary.appendChild(summaryTitle);
     summary.appendChild(element('span', 'metric', t('row.similarity', { value: percent(fit.similarity[occupation]) })));
     summary.appendChild(element('span', 'metric', t('row.gap', { value: format(entry.g) })));
     summary.appendChild(
@@ -908,9 +977,9 @@
     var extra = [];
     entry.dwa.forEach(function (dwaIndex) {
       if (state.performed.has(dwaIndex)) {
-        shared.push(dataset.dwas[dwaIndex].n);
+        shared.push(activityLabel(dwaIndex) + (activityLabel(dwaIndex) === dataset.dwas[dwaIndex].n ? '' : ' (' + dataset.dwas[dwaIndex].n + ')'));
       } else {
-        extra.push(dataset.dwas[dwaIndex].n);
+        extra.push(activityLabel(dwaIndex) + (activityLabel(dwaIndex) === dataset.dwas[dwaIndex].n ? '' : ' (' + dataset.dwas[dwaIndex].n + ')'));
       }
     });
 
@@ -961,7 +1030,7 @@
       var entry = dataset.occupations[occupation];
       rows.push([
         entry.c,
-        entry.t,
+        occupationLabel(occupation),
         state.fit.similarity[occupation].toFixed(4),
         state.fit.shared[occupation],
         entry.dwa.length,
