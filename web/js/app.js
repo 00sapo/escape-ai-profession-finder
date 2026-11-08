@@ -18,7 +18,7 @@
   var TUNING = {
     maxSupport: 10,
     learningRate: 1,
-    stopStability: 0.041
+    stopStability: 0.059
   };
 
   var index = model.buildIndex(dataset);
@@ -602,7 +602,8 @@
     var evidence = {
       performed: Int32Array.from(performed),
       denied: Int32Array.from(denied),
-      priority: Int32Array.from(state.activityOrder)
+      priority: Int32Array.from(state.activityOrder),
+      priorityImportance: dataset.priorityImportance
     };
     state.performed = new Set(performed);
     state.denied = new Set(denied);

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-08T00:33:05Z",
+  "generated": "2026-11-08T09:26:19Z",
   "thresholds": {
     "mae": 0.05,
     "top10": 0.7
@@ -34,7 +34,7 @@
         "maxSupport": 10,
         "learningRate": 0.4
       },
-      "mae": 0.0006137311534102818,
+      "mae": 0.0006137311534102803,
       "top10": 0.9917190369484272
     },
     {
@@ -58,7 +58,7 @@
         "maxSupport": 6,
         "learningRate": 0.4
       },
-      "mae": 0.0006169256844365145,
+      "mae": 0.0006169256844365128,
       "top10": 0.9917190369484272
     },
     {
@@ -82,7 +82,7 @@
         "maxSupport": 8,
         "learningRate": 0.4
       },
-      "mae": 0.0006206108393570741,
+      "mae": 0.0006206108393570725,
       "top10": 0.9917190369484272
     },
     {
@@ -106,7 +106,7 @@
         "maxSupport": 4,
         "learningRate": 0.4
       },
-      "mae": 0.0006348626463423998,
+      "mae": 0.0006348626463423983,
       "top10": 0.9917190369484272
     }
   ],
@@ -122,10 +122,10 @@
     {
       "size": 5,
       "count": 547,
-      "mae": 0.003073383825193697,
+      "mae": 0.0029460072255593278,
       "top10": 0.9853747714808044,
       "rank1": 0.9213893967093236,
-      "stability": 0.1225922056817852
+      "stability": 0.12396332085545979
     },
     {
       "size": 6,
@@ -178,10 +178,10 @@
     {
       "size": 25,
       "count": 144,
-      "mae": 0.0009575231481873384,
+      "mae": 0.0006753472222614127,
       "top10": 1,
       "rank1": 0.9722222222222222,
-      "stability": 0.040856481480711936
+      "stability": 0.05914351851774897
     }
   ],
   "heldout": [
@@ -252,10 +252,10 @@
     {
       "size": 25,
       "count": 91,
-      "mae": 0.0007155494506771778,
+      "mae": 0.0006348901100178382,
       "top10": 1,
       "rank1": 0.9560439560439561,
-      "stability": 0.02490842491122365
+      "stability": 0.029304029306828044
     }
   ],
   "heldoutNoisy": {
@@ -339,8 +339,8 @@
     "empiricalMinimum": 4,
     "productFloor": 10,
     "operatingFloor": 10,
-    "stopStability": 0.041,
-    "stopRule": "stop when at least 10 activities are declared and the blend moves less than 0.041 in total variation for two consecutive answers"
+    "stopStability": 0.059,
+    "stopRule": "stop when at least 10 activities are declared and the blend moves less than 0.059 in total variation for two consecutive answers"
   },
   "heldoutAt20": {
     "size": 20,

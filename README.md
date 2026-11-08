@@ -111,7 +111,7 @@ deviation of 24 bootstrap refits over the declared activities, with each
 resampled activity carrying its frequency weight.
 
 The suggestion loop stops when at least ten activities are declared and the
-blend moves less than 0.041 in total variation for two consecutive answers.
+blend moves less than 0.059 in total variation for two consecutive answers.
 The validation harness derives both numbers.
 
 
@@ -155,6 +155,41 @@ page cannot rank them by exposure.
 
 The median occupation has 20 activities. The page sets the first minimum to
 `ceil(20 / 2)`, which is 10.
+
+### Activity importance and priority
+
+O*NET importance comes from joining `Tasks to DWAs.txt` with the `IM` rows of
+`Task Ratings.txt`. A task's importance is the mean of its IM ratings; a task
+with no rating takes the global mean rating. Per occupation and activity the
+importance is the maximum over the tasks mapped to that activity. An activity
+with no mapped task takes the occupation mean, then the global mean. The bundle
+ships these as `imp`, aligned with each occupation's `dwa`, plus
+`dwaImportance` (per-activity average across occupations) and
+`priorityImportance`.
+
+`priorityImportance` has 21 values: the mean O*NET importance at each relative
+rank of the user's order, pooled over occupations, forced non-increasing, then
+stretched linearly to span the full 1 to 5 importance range. The stretch keeps
+the map monotone and makes an order change actually move the blend. A declared
+activity at relative position q takes the interpolated table value, and that
+value becomes its evidence weight, replacing the unit weight when no frequency
+is supplied. A supplied frequency still takes precedence. When the performed set
+equals an occupation's full activity set, the blend collapses onto that
+occupation, so reversing an unambiguous single-occupation order changes nothing.
+
+`validation/priority_check.js` measures three cases over the 879 occupations:
+
+| Case | Result |
+|------|--------|
+| O*NET-following order vs true importance | median Spearman 0.998, median Kendall tau 0.969, mean absolute difference 0.208 |
+| Random-order control | median Spearman -0.008, median Kendall tau -0.004, mean absolute difference 0.274 |
+| Single occupation, full set, order reversed | median gap delta 0, median top-weight delta 0 (exact-set collapse) |
+| Two occupations merged, order reversed | median gap delta 0.066, max 0.939, median top-weight delta 0.073, top occupation changes in 21.4 percent of pairs |
+
+The harness fails when the following-order median Spearman drops below 0.6, is
+less than 0.2 above the control, a single occupation's full-set order moves the
+gap, or merged evidence barely reacts (median gap delta below 0.02 and top
+occupation changes below 10 percent). All thresholds live in that file.
 
 ### Capability domains
 

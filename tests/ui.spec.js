@@ -416,6 +416,61 @@ test('the occupation detail lists the nine domains', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
+test('the activity order changes the estimate', async ({ page }) => {
+  await startOccupations(page);
+  await selectOccupation(page, 'chief');
+  await selectOccupation(page, 'account');
+  await expect(page.locator('#selected-occupations li')).toHaveCount(2);
+  await page.locator('#occupations-continue').click();
+  await expect(page.locator('#screen-activities')).toBeVisible();
+  await expect(page.locator('#activity-list li[data-dwa]').first()).toBeVisible();
+
+  const score = page.locator('#score-value');
+  await page.locator('#activities-done').click();
+  await expect(page.locator('#screen-results')).toBeVisible();
+  const first = (await score.textContent()).trim();
+  expect(first).toMatch(/\d+,\d\d/);
+
+  await page.locator('#results-back').click();
+  await expect(page.locator('#screen-activities')).toBeVisible();
+
+  const rows = page.locator('#activity-list li[data-dwa]');
+  const codes = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
+  const total = codes.length;
+  expect(total).toBeGreaterThan(1);
+  for (let index = 0; index < codes.length; index += 1) {
+    const rank = page.locator(`#activity-list li[data-dwa="${codes[index]}"] input[data-rank]`);
+    await rank.fill(String(total - index));
+    await rank.blur();
+  }
+  await expect(page.locator('#activity-list li[data-dwa]').first()).toHaveAttribute('data-dwa', codes[total - 1]);
+  await expect(page.locator('#activity-list li[data-dwa]').last()).toHaveAttribute('data-dwa', codes[0]);
+
+  await page.locator('#activities-done').click();
+  await expect(page.locator('#screen-results')).toBeVisible();
+  await expect
+    .poll(async () => (await score.textContent()).trim(), {
+      message: 'reversing the activity order should change the estimated gap'
+    })
+    .not.toBe(first);
+
+  await page.locator('#results-back').click();
+  await expect(page.locator('#screen-activities')).toBeVisible();
+
+  const boxes = page.locator('#activity-list input[data-enabled]');
+  const boxCount = await boxes.count();
+  expect(boxCount).toBeGreaterThan(1);
+  for (let index = 1; index < boxCount; index += 1) {
+    if (await boxes.nth(index).isChecked()) {
+      await boxes.nth(index).uncheck();
+    }
+  }
+  await expect(page.locator('#activities-done')).toBeEnabled();
+  await page.locator('#activities-done').click();
+  await expect(page.locator('#screen-results')).toBeVisible();
+  await expect(score).toHaveText(/\d+,\d\d/);
+});
+
 test('filters and CSV export work', async ({ page }) => {
   await reachResults(page);
 

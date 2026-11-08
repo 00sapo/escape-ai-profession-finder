@@ -90,6 +90,35 @@
   /* Read the stated frequency for one activity. The page passes a Map from DWA
    * index to the number the user typed; anything missing or invalid falls back
    * to unit weight, which reproduces the unweighted model. */
+  /* Position to O*NET importance. The build ships priorityImportance, the mean
+   * O*NET importance at each relative rank in the user's order. A declared
+   * activity takes the interpolated value for its position, so ordering by
+   * O*NET importance produces weights on the O*NET scale. */
+  function priorityImportanceWeight(evidence, dwa, fallback) {
+    var table = evidence.priorityImportance;
+    var priority = evidence.priority;
+    if (!table || !priority || priority.length === 0) {
+      return fallback;
+    }
+    var position = -1;
+    for (var i = 0; i < priority.length; i += 1) {
+      if (priority[i] === dwa) {
+        position = i;
+        break;
+      }
+    }
+    if (position < 0) {
+      return fallback;
+    }
+    var q = priority.length === 1 ? 0 : position / (priority.length - 1);
+    var x = q * (table.length - 1);
+    var low = Math.floor(x);
+    var fraction = x - low;
+    var a = table[low];
+    var b = table[Math.min(table.length - 1, low + 1)];
+    return a + (b - a) * fraction;
+  }
+
   function frequencyOf(evidence, dwa, fallback) {
     var source = evidence.frequency;
     if (!source) {
@@ -137,11 +166,16 @@
     var performedWeights = new Float64Array(performed.length);
     var deniedWeights = new Float64Array(denied.length);
     var i;
+    var hasFrequency = Boolean(evidence.frequency);
     for (i = 0; i < performed.length; i += 1) {
-      performedWeights[i] = frequencyOf(evidence, performed[i], 1);
+      performedWeights[i] = hasFrequency
+        ? frequencyOf(evidence, performed[i], 1)
+        : priorityImportanceWeight(evidence, performed[i], 1);
     }
     for (i = 0; i < denied.length; i += 1) {
-      deniedWeights[i] = frequencyOf(evidence, denied[i], 1);
+      deniedWeights[i] = hasFrequency
+        ? frequencyOf(evidence, denied[i], 1)
+        : priorityImportanceWeight(evidence, denied[i], 1);
     }
     return {
       performed: performed,
@@ -149,7 +183,8 @@
       performedWeights: performedWeights,
       deniedWeights: deniedWeights,
       frequency: evidence.frequency,
-      priority: evidence.priority ? Int32Array.from(evidence.priority) : null
+      priority: evidence.priority ? Int32Array.from(evidence.priority) : null,
+      priorityImportance: evidence.priorityImportance || null
     };
   }
 
@@ -209,11 +244,20 @@
       return order;
     }
     var flags = flagEvidence(index, weighted.performed, weighted.denied);
+    var weightsByDwa = new Float64Array(index.nDwa);
+    var j;
+    for (j = 0; j < weighted.performed.length; j += 1) {
+      weightsByDwa[weighted.performed[j]] = weighted.performedWeights[j];
+    }
+    for (j = 0; j < weighted.denied.length; j += 1) {
+      weightsByDwa[weighted.denied[j]] = weighted.deniedWeights[j];
+    }
     for (var p = 0; p < priority.length; p += 1) {
       var dwa = priority[p];
       order.push({
         dwa: dwa,
         frequency: frequencyOf(evidence, dwa, 1),
+        weight: weightsByDwa[dwa] || 0,
         performed: flags.performed[dwa] === 1,
         denied: flags.denied[dwa] === 1
       });
@@ -437,10 +481,49 @@
     return fitBlendWeighted(index, evidence, options);
   }
 
+  function exactOccupation(index, evidence) {
+    if (evidence.denied.length > 0 || evidence.performed.length === 0) {
+      return -1;
+    }
+    var mask = new Uint8Array(index.nDwa);
+    var unique = 0;
+    for (var i = 0; i < evidence.performed.length; i += 1) {
+      if (!mask[evidence.performed[i]]) {
+        mask[evidence.performed[i]] = 1;
+        unique += 1;
+      }
+    }
+    for (var o = 0; o < index.nOcc; o += 1) {
+      var list = index.occDwa[o];
+      if (list.length !== unique) {
+        continue;
+      }
+      var match = true;
+      for (var k = 0; k < list.length; k += 1) {
+        if (!mask[list[k]]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return o;
+      }
+    }
+    return -1;
+  }
+
   function fitBlendCore(index, evidence, options) {
     var settings = Object.assign({}, DEFAULTS, options || {});
     var started = now();
     var scored = scoreOccupations(index, evidence);
+    var exact = exactOccupation(index, evidence);
+    if (exact >= 0) {
+      var result = summarize(index, evidence, scored, [exact], new Float64Array([1]));
+      result.candidates = [exact];
+      result.elapsedMs = Math.round(now() - started);
+      result.scored = scored;
+      return result;
+    }
     var candidates = candidateSet(scored, settings.candidates);
     var slotTable = new Int32Array(index.nOcc).fill(-1);
     var i;

@@ -155,6 +155,36 @@ def ai_capability_levels(oecd: dict[str, dict]) -> list[float]:
     return levels
 
 
+def load_task_importance() -> dict:
+    """Join Tasks to DWAs with Task Ratings IM.
+
+    Per task, importance is the mean IM rating (scale 1 to 5). Tasks without an
+    IM rating take the global mean rating. Per occupation and DWA the importance
+    is the maximum over the tasks mapped to that activity; an activity with no
+    mapped task takes the occupation mean, then the global mean.
+    """
+    task_ratings: dict[tuple[str, str], list[float]] = {}
+    every = []
+    for row in read_tsv("Task Ratings.txt"):
+        if row.get("Scale ID") != "IM":
+            continue
+        try:
+            value = float(row["Data Value"])
+        except (TypeError, ValueError):
+            continue
+        if not 1.0 <= value <= 5.0:
+            continue
+        key = (row["O*NET-SOC Code"], row["Task ID"])
+        task_ratings.setdefault(key, []).append(value)
+        every.append(value)
+    task_importance = {key: sum(values) / len(values) for key, values in task_ratings.items()}
+    global_mean = sum(every) / len(every) if every else 3.0
+    links: dict[tuple[str, str], list[str]] = {}
+    for row in read_tsv("Tasks to DWAs.txt"):
+        links.setdefault((row["O*NET-SOC Code"], row["DWA Element ID"]), []).append(row["Task ID"])
+    return {"task": task_importance, "links": links, "global": global_mean}
+
+
 def load_translations() -> dict:
     """Optional machine translations. Missing files or strings fall back to English."""
     translations = {}
@@ -177,6 +207,7 @@ def build() -> dict:
     oecd = load_oecd()
     translations = load_translations()
     ai_capability = ai_capability_levels(oecd)
+    importance = load_task_importance()
 
     joined = sorted(code for code in oecd if code in onet["occupation_dwa"] and code in onet["occupations"])
     missing_score = sorted(code for code in onet["occupations"] if code not in oecd)
@@ -216,6 +247,23 @@ def build() -> dict:
     for code in joined:
         info = onet["occupations"][code]
         score = oecd[code]
+        dwa_ids_for_occupation = sorted(
+            onet["occupation_dwa"][code],
+            key=lambda element: dwa_index[element],
+        )
+        raw_importance = []
+        for element in dwa_ids_for_occupation:
+            tasks = importance["links"].get((code, element), [])
+            values = [
+                importance["task"].get((code, task), importance["global"])
+                for task in tasks
+            ]
+            raw_importance.append(max(values) if values else None)
+        known = [value for value in raw_importance if value is not None]
+        fallback = sum(known) / len(known) if known else importance["global"]
+        occupation_importance = [
+            round(value if value is not None else fallback, 2) for value in raw_importance
+        ]
         entry = {
             "c": code,
             "t": info["title"],
@@ -223,6 +271,7 @@ def build() -> dict:
             "g": round(score["gap"], 4),
             "e": round(score["exposure"], 4),
             "dwa": sorted(dwa_index[dwa] for dwa in onet["occupation_dwa"][code]),
+            "imp": occupation_importance,
             "dg": score["dg"],
             "dd": score["dd"],
         }
@@ -234,6 +283,46 @@ def build() -> dict:
         if translated:
             entry["tr"] = translated
         occupations.append(entry)
+
+    dwa_totals = [0.0] * len(dwas)
+    dwa_counts = [0] * len(dwas)
+    for entry in occupations:
+        for position, dwa in enumerate(entry["dwa"]):
+            dwa_totals[dwa] += entry["imp"][position]
+            dwa_counts[dwa] += 1
+    dwa_importance = [
+        round(dwa_totals[index] / dwa_counts[index], 2) if dwa_counts[index] else round(importance["global"], 2)
+        for index in range(len(dwas))
+    ]
+
+    PRIORITY_BINS = 20
+    bin_totals = [0.0] * (PRIORITY_BINS + 1)
+    bin_counts = [0] * (PRIORITY_BINS + 1)
+    for entry in occupations:
+        ordered = sorted(entry["imp"], reverse=True)
+        if len(ordered) < 2:
+            continue
+        for rank, value in enumerate(ordered):
+            bin_index = round((rank / (len(ordered) - 1)) * PRIORITY_BINS)
+            bin_totals[bin_index] += value
+            bin_counts[bin_index] += 1
+    means = [
+        bin_totals[index] / bin_counts[index] if bin_counts[index] else None
+        for index in range(PRIORITY_BINS + 1)
+    ]
+    known = [value for value in means if value is not None]
+    overall = sum(known) / len(known) if known else importance["global"]
+    filled = [value if value is not None else overall for value in means]
+    priority_importance = []
+    floor = filled[0]
+    for value in filled:
+        floor = min(floor, value)
+        priority_importance.append(floor)
+    low = min(priority_importance)
+    high = max(priority_importance)
+    if high > low:
+        priority_importance = [1.0 + 4.0 * (value - low) / (high - low) for value in priority_importance]
+    priority_importance = [round(value, 3) for value in priority_importance]
 
     counts = [len(entry["dwa"]) for entry in occupations]
     median = statistics.median(counts)
@@ -285,6 +374,8 @@ def build() -> dict:
         },
         "domains": DOMAIN_KEYS,
         "aiCapability": ai_capability,
+        "dwaImportance": dwa_importance,
+        "priorityImportance": priority_importance,
         "gwas": [onet["names"].get(element, element) for element in gwa_ids],
         "iwas": [onet["names"].get(element, element) for element in iwa_ids],
         "dwas": dwas,
@@ -342,6 +433,46 @@ def check() -> int:
 
     occupations = bundle["occupations"]
     dwas = bundle["dwas"]
+    dwa_totals = [0.0] * len(dwas)
+    dwa_counts = [0] * len(dwas)
+    for entry in occupations:
+        for position, dwa in enumerate(entry["dwa"]):
+            dwa_totals[dwa] += entry["imp"][position]
+            dwa_counts[dwa] += 1
+    dwa_importance = [
+        round(dwa_totals[index] / dwa_counts[index], 2) if dwa_counts[index] else round(importance["global"], 2)
+        for index in range(len(dwas))
+    ]
+
+    PRIORITY_BINS = 20
+    bin_totals = [0.0] * (PRIORITY_BINS + 1)
+    bin_counts = [0] * (PRIORITY_BINS + 1)
+    for entry in occupations:
+        ordered = sorted(entry["imp"], reverse=True)
+        if len(ordered) < 2:
+            continue
+        for rank, value in enumerate(ordered):
+            bin_index = round((rank / (len(ordered) - 1)) * PRIORITY_BINS)
+            bin_totals[bin_index] += value
+            bin_counts[bin_index] += 1
+    means = [
+        bin_totals[index] / bin_counts[index] if bin_counts[index] else None
+        for index in range(PRIORITY_BINS + 1)
+    ]
+    known = [value for value in means if value is not None]
+    overall = sum(known) / len(known) if known else importance["global"]
+    filled = [value if value is not None else overall for value in means]
+    priority_importance = []
+    floor = filled[0]
+    for value in filled:
+        floor = min(floor, value)
+        priority_importance.append(floor)
+    low = min(priority_importance)
+    high = max(priority_importance)
+    if high > low:
+        priority_importance = [1.0 + 4.0 * (value - low) / (high - low) for value in priority_importance]
+    priority_importance = [round(value, 3) for value in priority_importance]
+
     counts = [len(entry["dwa"]) for entry in occupations]
     meta = bundle["meta"]
     print(f"occupations           {len(occupations)}")
@@ -370,6 +501,21 @@ def check() -> int:
     levels = bundle.get("aiCapability", [])
     if len(levels) != 9 or any(not 1.0 <= value <= 5.0 for value in levels):
         failures.append("aiCapability must hold nine levels between 1 and 5")
+    dwa_levels = bundle.get("dwaImportance", [])
+    if len(dwa_levels) != len(dwas) or any(not 1.0 <= value <= 5.0 for value in dwa_levels):
+        failures.append("dwaImportance must align with dwas and stay between 1 and 5")
+    table = bundle.get("priorityImportance", [])
+    if len(table) != 21 or any(not 1.0 <= value <= 5.0 for value in table):
+        failures.append("priorityImportance must hold 21 values between 1 and 5")
+    if any(table[index] < table[index + 1] for index in range(len(table) - 1)):
+        failures.append("priorityImportance must be non-increasing")
+    for entry in occupations:
+        if len(entry.get("imp", [])) != len(entry["dwa"]):
+            failures.append(f"{entry['c']} importance is not aligned with its activities")
+            break
+        if any(not 1.0 <= value <= 5.0 for value in entry["imp"]):
+            failures.append(f"{entry['c']} has an importance outside 1 to 5")
+            break
     for entry in occupations:
         if len(entry.get("dg", [])) != 9 or len(entry.get("dd", [])) != 9:
             failures.append(f"{entry['c']} misses domain gaps or demands")
