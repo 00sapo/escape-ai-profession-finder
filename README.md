@@ -6,6 +6,8 @@ the OECD 2026 AI Capability Gap of that profile.
 
 ## What it shows
 
+- A four slide introduction: several occupations, activities and order, the
+  estimate, and the scale. The last slide opens the occupation search.
 - A fuzzy occupation search over 879 O*NET titles, with a score per row, a
   twenty row cap and the total count.
 - A selected occupation list with a remove button for each choice.

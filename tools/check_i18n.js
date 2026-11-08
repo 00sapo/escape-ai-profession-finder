@@ -21,6 +21,7 @@ const STRINGS = eval('(' + match[1] + ')');
 
 const used = new Set();
 let dynamicDomain = false;
+let dynamicSlides = false;
 const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
 for (const attr of html.matchAll(/data-i18n(?:-placeholder|-aria-label)?="([^"]+)"/g)) {
   used.add(attr[1]);
@@ -31,6 +32,7 @@ for (const file of fs.readdirSync(path.join(ROOT, 'web/js'))) {
   for (const call of source.matchAll(/\bt\(\s*'([^'\\]+)'/g)) { if (!call[1].endsWith('.')) used.add(call[1]); }
   for (const call of source.matchAll(/\bt\(\s*"([^"\\]+)"/g)) { if (!call[1].endsWith('.')) used.add(call[1]); }
   if (/\bt\(\s*['"]domain\.'\s*\+/.test(source)) dynamicDomain = true;
+  if (/\bt\(\s*['"]slides\.'\s*\+/.test(source)) dynamicSlides = true;
 }
 
 const problems = [];
@@ -45,6 +47,11 @@ for (const locale of LOCALES) {
   }
   for (const key of Object.keys(STRINGS[locale])) {
     if (!(key in STRINGS.it)) problems.push(`${locale} has extra ${key}`);
+  }
+}
+if (dynamicSlides) {
+  for (const key of base) {
+    if (/^slides\./.test(key)) used.add(key);
   }
 }
 if (dynamicDomain) {

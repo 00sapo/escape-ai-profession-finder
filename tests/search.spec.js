@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { startOccupations } from './flow.js';
 
 /*
  * Fuzzy search over occupation titles on #screen-occupations. The search must
@@ -7,8 +8,7 @@ import { test, expect } from '@playwright/test';
  */
 
 async function openSearch(page) {
-  await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
+  await startOccupations(page);
   await expect(page.locator('#screen-occupations')).toBeVisible();
 }
 

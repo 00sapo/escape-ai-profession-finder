@@ -34,6 +34,7 @@
     origin: 'tree',
     infoDwa: -1,
     detailOccupation: -1,
+    slide: 0,
     selectedOccupations: [],
     activityOrder: [],
     activityEnabled: new Map()
@@ -98,6 +99,43 @@
     }
   }
 
+  var SLIDE_VISUALS = [
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="4" y="10" width="40" height="18" rx="4" fill="#0a4f9c"/><rect x="40" y="26" width="40" height="18" rx="4" fill="#4f7fb5"/><rect x="76" y="10" width="40" height="18" rx="4" fill="#0a4f9c"/><path d="M24 28 L60 44 L96 28" stroke="#4f5a68" fill="none" stroke-width="2"/><rect x="30" y="46" width="60" height="12" rx="4" fill="#e3edf9" stroke="#0a4f9c"/></svg>',
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="10" y="8" width="100" height="10" rx="4" fill="#0a4f9c"/><rect x="10" y="24" width="82" height="10" rx="4" fill="#8aa9c9"/><rect x="10" y="40" width="64" height="10" rx="4" fill="#c8d0da"/><path d="M96 8 l0 -6 m0 0 l-4 4 m4 -4 l4 4" stroke="#12161c" fill="none" stroke-width="2"/></svg>',
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="8" width="104" height="48" rx="5" fill="#ffffff" stroke="#4f5a68"/><path d="M20 42 L38 30 L54 36 L72 20 L92 26 L104 18" stroke="#0a4f9c" fill="none" stroke-width="2"/><circle cx="72" cy="20" r="3" fill="#0a4f9c"/></svg>',
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="26" width="104" height="12" rx="6" fill="url(#g)"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#b3261e"/><stop offset="1" stop-color="#1a6b3c"/></linearGradient></defs><rect x="8" y="42" width="6" height="6" fill="#12161c"/><rect x="106" y="42" width="6" height="6" fill="#12161c"/></svg>'
+  ];
+
+  function renderSlide() {
+    var index = state.slide;
+    elements['slide-title'].textContent = t('slides.' + (index + 1) + '.title');
+    elements['slide-text'].textContent = t('slides.' + (index + 1) + '.text', {
+      min: i18n.number(gapMin, gapMin === Math.round(gapMin) ? 0 : 2),
+      max: i18n.number(gapMax, 2)
+    });
+    elements['slide-visual'].innerHTML = SLIDE_VISUALS[index];
+    var progress = t('slides.progress', { current: i18n.number(index + 1, 0), total: i18n.number(4, 0) });
+    elements['slide-progress'].textContent = '';
+    elements['slide-progress'].appendChild(document.createTextNode(progress + ' '));
+    for (var dot = 0; dot < 4; dot += 1) {
+      var marker = element('span', 'slide-dot' + (dot === index ? ' is-current' : ''), '•');
+      marker.setAttribute('aria-hidden', 'true');
+      elements['slide-progress'].appendChild(marker);
+    }
+    elements['slide-back'].disabled = index === 0;
+    elements['slide-next'].textContent = index === 3 ? t('slides.finish') : t('slides.next');
+  }
+
+  function changeSlide(step) {
+    state.slide = Math.max(0, Math.min(3, state.slide + step));
+    renderSlide();
+  }
+
+  function openOccupations() {
+    renderOccupationScreen();
+    setScreen('occupations');
+  }
+
   function prepare() {
     var i;
     for (i = 0; i < dataset.occupations.length; i += 1) {
@@ -136,6 +174,15 @@
     [
       'screen-intro',
       'screen-occupations',
+      'screen-slides',
+      'slide-panel',
+      'slide-title',
+      'slide-text',
+      'slide-visual',
+      'slide-progress',
+      'slide-back',
+      'slide-next',
+      'slide-skip',
       'screen-activities',
       'screen-results',
       'start-occupations',
@@ -251,7 +298,7 @@
 
   function setScreen(name) {
     state.screen = name;
-    ['intro', 'occupations', 'activities', 'results'].forEach(function (screen) {
+    ['intro', 'slides', 'occupations', 'activities', 'results'].forEach(function (screen) {
       var node = elements['screen-' + screen];
       if (node) {
         node.hidden = screen !== name;
@@ -1142,8 +1189,32 @@
 
   function wire() {
     elements['start-occupations'].addEventListener('click', function () {
-      renderOccupationScreen();
-      setScreen('occupations');
+      state.slide = 0;
+      renderSlide();
+      setScreen('slides');
+    });
+    elements['slide-back'].addEventListener('click', function () {
+      changeSlide(-1);
+    });
+    elements['slide-next'].addEventListener('click', function () {
+      if (state.slide === 3) {
+        openOccupations();
+      } else {
+        changeSlide(1);
+      }
+    });
+    elements['slide-skip'].addEventListener('click', openOccupations);
+    document.addEventListener('keydown', function (event) {
+      if (state.screen !== 'slides') {
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        changeSlide(1);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        changeSlide(-1);
+      }
     });
     elements['results-back'].addEventListener('click', function () {
       if (state.origin === 'occupations') {

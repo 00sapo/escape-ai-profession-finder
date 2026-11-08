@@ -81,6 +81,20 @@
     <button id="start-occupations" class="button button-primary" type="button" data-i18n="occupations.title">Scegli le professioni</button>
   </section>
 
+  <section id="screen-slides" class="screen" hidden aria-labelledby="slide-title">
+    <div id="slide-panel" class="card slide-panel">
+      <div id="slide-visual" class="slide-visual" aria-hidden="true"></div>
+      <h2 id="slide-title"></h2>
+      <p id="slide-text"></p>
+    </div>
+    <p id="slide-progress" class="counter" role="status" aria-live="polite"></p>
+    <div class="actions">
+      <button id="slide-back" class="button" type="button" data-i18n="slides.back">Indietro</button>
+      <button id="slide-next" class="button button-primary" type="button" data-i18n="slides.next">Avanti</button>
+      <button id="slide-skip" class="button" type="button" data-i18n="slides.skip">Salta</button>
+    </div>
+  </section>
+
   <section id="screen-occupations" class="screen" hidden aria-labelledby="occupations-title">
     <h2 id="occupations-title" data-i18n="occupations.title">Scegli le professioni</h2>
     <p class="hint" data-i18n="occupations.hint">

@@ -1,14 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-async function reachResults(page) {
-  await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
-  await page.locator('#occupation-search').fill('chief');
-  await page.locator('#occupation-results button[data-select-occupation]').first().click();
-  await page.locator('#occupations-continue').click();
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
-}
+import { reachActivities, reachResults } from './flow.js';
 
 test('the score is the gap and the histogram marks one bin between the axes', async ({ page }) => {
   await reachResults(page);
@@ -39,11 +30,7 @@ test('the score is the gap and the histogram marks one bin between the axes', as
 });
 
 test('typing a rank moves the row and keeps its enabled state', async ({ page }) => {
-  await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
-  await page.locator('#occupation-search').fill('chief');
-  await page.locator('#occupation-results button[data-select-occupation]').first().click();
-  await page.locator('#occupations-continue').click();
+  await reachActivities(page);
   const rows = page.locator('#activity-list li[data-dwa]');
   const first = await rows.first().getAttribute('data-dwa');
   const second = await rows.nth(1).getAttribute('data-dwa');

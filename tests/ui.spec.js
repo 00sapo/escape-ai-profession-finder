@@ -3,36 +3,16 @@ import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  enterOccupations,
+  startOccupations,
+  selectOccupation,
+  reachActivities,
+  reachResults
+} from './flow.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.join(path.dirname(HERE), 'web');
-
-async function startOccupations(page) {
-  await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
-  await expect(page.locator('#screen-occupations')).toBeVisible();
-}
-
-async function selectOccupation(page, query = 'chief') {
-  await page.locator('#occupation-search').fill(query);
-  const add = page.locator('#occupation-results button[data-select-occupation]').first();
-  await expect(add).toBeVisible();
-  await add.click();
-}
-
-async function reachActivities(page) {
-  await startOccupations(page);
-  await selectOccupation(page);
-  await page.locator('#occupations-continue').click();
-  await expect(page.locator('#screen-activities')).toBeVisible();
-  await expect(page.locator('#activity-list li[data-dwa]').first()).toBeVisible();
-}
-
-async function reachResults(page) {
-  await reachActivities(page);
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
-}
 
 async function horizontalOverflow(page) {
   return page.evaluate(() => {
@@ -128,6 +108,9 @@ async function contrastFailures(page) {
     const failures = [];
     document.querySelectorAll('body *').forEach((node) => {
       if (!node.getClientRects().length) {
+        return;
+      }
+      if (node.closest('[aria-hidden="true"]')) {
         return;
       }
       const ownText = Array.from(node.childNodes)
@@ -465,9 +448,8 @@ test('the page runs from disk with no network request', async ({ page }, testInf
     }
   });
   await page.goto(`file://${path.join(WEB_ROOT, 'index.html')}`);
-  await page.locator('#start-occupations').click();
-  await page.locator('#occupation-search').fill('chief');
-  await page.locator('#occupation-results button[data-select-occupation]').first().click();
+  await enterOccupations(page);
+  await selectOccupation(page);
   await page.locator('#occupations-continue').click();
   await page.locator('#activities-done').click();
   await expect(page.locator('#screen-results')).toBeVisible();
@@ -531,6 +513,59 @@ test('the intro names and links both sources', async ({ page }) => {
   expect(external).toEqual([]);
 });
 
+test('the onboarding slides walk forward and back', async ({ page }) => {
+  const title = async () => (await page.locator('#slide-title').textContent()).trim();
+  const progress = async () =>
+    page.locator('#slide-progress').evaluate((node) => {
+      const text = node.textContent.trim();
+      return text || node.getAttribute('aria-valuenow') || node.value || '';
+    });
+
+  await page.goto('/index.html');
+  await page.locator('#start-occupations').click();
+  await expect(page.locator('#screen-slides')).toBeVisible();
+  await expect(page.locator('#slide-back')).toBeDisabled();
+
+  const first = await title();
+  expect(first).not.toBe('');
+  const firstProgress = await progress();
+  expect(firstProgress).toMatch(/\d/);
+
+  await page.locator('#slide-next').click();
+  await expect.poll(title).not.toBe(first);
+  const second = await title();
+  await expect(page.locator('#slide-back')).toBeEnabled();
+  const secondProgress = await progress();
+  expect(secondProgress).not.toBe(firstProgress);
+
+  await page.locator('#slide-back').click();
+  await expect.poll(title).toBe(first);
+  await expect(page.locator('#slide-back')).toBeDisabled();
+
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(title).toBe(second);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(title).toBe(first);
+
+  for (let step = 0; step < 10; step += 1) {
+    if (await page.locator('#screen-occupations').isVisible()) {
+      break;
+    }
+    await expect(page.locator('#screen-slides')).toBeVisible();
+    await assertLayoutIsSound(page);
+    expect(await axeSerious(page)).toEqual([]);
+    await page.locator('#slide-next').click();
+  }
+  await expect(page.locator('#screen-occupations')).toBeVisible();
+
+  await page.goto('/index.html');
+  await page.locator('#start-occupations').click();
+  await expect(page.locator('#screen-slides')).toBeVisible();
+  await page.locator('#slide-next').click();
+  await page.locator('#slide-skip').click();
+  await expect(page.locator('#screen-occupations')).toBeVisible();
+});
+
 test('switches language without losing the flow', async ({ page }) => {
   await page.goto('/index.html');
   await expect(page.locator('html')).toHaveAttribute('lang', 'it');
@@ -545,9 +580,8 @@ test('switches language without losing the flow', async ({ page }) => {
   await assertLayoutIsSound(page);
   expect(await axeSerious(page)).toEqual([]);
 
-  await page.locator('#start-occupations').click();
-  await page.locator('#occupation-search').fill('chief');
-  await page.locator('#occupation-results button[data-select-occupation]').first().click();
+  await enterOccupations(page);
+  await selectOccupation(page);
   await page.locator('#occupations-continue').click();
   await page.locator('#activities-done').click();
   await expect(page.locator('#screen-results')).toBeVisible();
@@ -569,6 +603,9 @@ test('no screen renders a raw translation key', async ({ page }) => {
   await assertNoRawTranslationKeys(page);
 
   await page.locator('#start-occupations').click();
+  await expect(page.locator('#screen-slides')).toBeVisible();
+  await assertNoRawTranslationKeys(page);
+  await page.locator('#slide-skip').click();
   await expect(page.locator('#screen-occupations')).toBeVisible();
   await assertNoRawTranslationKeys(page);
 

@@ -890,6 +890,38 @@ li[data-dragging="true"] {
   outline-offset: 1px;
 }
 
+
+.slide-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 18rem;
+}
+
+.slide-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 96px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.slide-visual svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.slide-dot {
+  color: var(--muted);
+  margin-left: 0.2rem;
+}
+
+.slide-dot.is-current {
+  color: var(--accent);
+}
+
 .card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
