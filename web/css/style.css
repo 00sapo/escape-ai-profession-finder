@@ -557,6 +557,57 @@ summary:focus-visible {
   margin-top: 0.5rem;
 }
 
+
+.domain-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.domain-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.domain-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.domain-metrics {
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.domain-bar-track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 8px;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.domain-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.domain-desc {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+#occupation-detail-close {
+  width: 100%;
+}
+
 .info-panel {
   width: calc(100vw - 2rem);
   max-width: 32rem;

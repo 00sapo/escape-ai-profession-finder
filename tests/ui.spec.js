@@ -382,6 +382,57 @@ test('ranking cards carry a gap band, a red-to-green ramp and readable text', as
   expect(failures, JSON.stringify(failures)).toEqual([]);
 });
 
+test('the occupation detail lists the nine domains', async ({ page }) => {
+  await reachResults(page);
+
+  const card = page.locator('#ranking details.ranking-card').first();
+  await expect(card).toBeVisible();
+  await card.focus();
+  const cardFocused = await card.evaluate((node) => node === document.activeElement);
+  if (!cardFocused) {
+    await card.locator('summary').focus();
+  }
+  await page.keyboard.press('Enter');
+
+  const dialog = page.locator('#occupation-detail');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#occupation-detail-title')).not.toBeEmpty();
+  await expect(page.locator('#occupation-detail-total')).toBeVisible();
+
+  const rows = page.locator('#domain-list li[data-domain]');
+  await expect(rows).toHaveCount(9);
+  const domains = await rows.evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      key: node.getAttribute('data-domain'),
+      text: node.textContent.trim(),
+      numbers: (node.textContent.match(/-?\d+(?:[.,]\d+)?/g) || []).map((value) =>
+        Number(value.replace(',', '.'))
+      ),
+      hasBar: Boolean(node.querySelector('[class*="bar"], [role="progressbar"], progress, meter'))
+    }))
+  );
+  for (const domain of domains) {
+    expect(domain.key, 'each domain row needs a data-domain key').toBeTruthy();
+    expect(domain.text.length, `domain ${domain.key} should render text`).toBeGreaterThan(0);
+    expect(domain.numbers.length, `domain ${domain.key} should render a level and a gap`).toBeGreaterThanOrEqual(2);
+    expect(
+      domain.numbers.some((value) => Number.isInteger(value) && value >= 1 && value <= 5),
+      `domain ${domain.key} should render a level between 1 and 5: ${JSON.stringify(domain.numbers)}`
+    ).toBe(true);
+    expect(
+      domain.numbers.some((value) => Number.isFinite(value)),
+      `domain ${domain.key} should render a numeric gap`
+    ).toBe(true);
+    expect(domain.hasBar, `domain ${domain.key} should render a bar`).toBe(true);
+  }
+
+  await assertLayoutIsSound(page);
+  expect(await axeSerious(page)).toEqual([]);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
+
 test('filters and CSV export work', async ({ page }) => {
   await reachResults(page);
 

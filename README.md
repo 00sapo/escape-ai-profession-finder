@@ -154,6 +154,22 @@ page cannot rank them by exposure.
 The median occupation has 20 activities. The page sets the first minimum to
 `ceil(20 / 2)`, which is 10.
 
+### Capability domains
+
+The OECD workbook's `Data` sheet carries nine per-domain gaps (`Lang_Gap`,
+`Soc_Gap`, `ProbSolv_Gap`, `Creativity_Gap`, `Metacognition_Gap`, `KLM_Gap`,
+`Vision_Gap`, `Manip_Gap`, `Robot_Gap`) and the matching demands (`*_Dmd`). The
+bundle exports both per occupation as compact arrays in that fixed order, plus
+top-level `domains` and `aiCapability` arrays.
+
+The current AI level per domain is derived as the maximum over occupations of
+demand minus gap, clipped to the 1 to 5 range. It reproduces Table 6.1 of the
+paper exactly: language 3, social interaction 2, problem solving 2, creativity
+3, metacognition 2, knowledge/learning/memory 3, vision 3, manipulation 2,
+robotic intelligence 2. The per-domain gap is the demand minus that level,
+floored at zero, so a lower gap means more exposure in the domain. Clicking a
+ranking card opens the nine-domain breakdown with each level, gap and bar.
+
 ### Activity details
 
 `data/raw/db_31_0_text/Content Model Reference.txt` has an `Element ID`,

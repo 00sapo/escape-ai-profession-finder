@@ -20,6 +20,7 @@ if (!match) {
 const STRINGS = eval('(' + match[1] + ')');
 
 const used = new Set();
+let dynamicDomain = false;
 const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
 for (const attr of html.matchAll(/data-i18n(?:-placeholder|-aria-label)?="([^"]+)"/g)) {
   used.add(attr[1]);
@@ -27,8 +28,9 @@ for (const attr of html.matchAll(/data-i18n(?:-placeholder|-aria-label)?="([^"]+
 for (const file of fs.readdirSync(path.join(ROOT, 'web/js'))) {
   if (!file.endsWith('.js') || file === 'i18n.js') continue;
   const source = fs.readFileSync(path.join(ROOT, 'web/js', file), 'utf8');
-  for (const call of source.matchAll(/\bt\(\s*'([^'\\]+)'/g)) used.add(call[1]);
-  for (const call of source.matchAll(/\bt\(\s*"([^"\\]+)"/g)) used.add(call[1]);
+  for (const call of source.matchAll(/\bt\(\s*'([^'\\]+)'/g)) { if (!call[1].endsWith('.')) used.add(call[1]); }
+  for (const call of source.matchAll(/\bt\(\s*"([^"\\]+)"/g)) { if (!call[1].endsWith('.')) used.add(call[1]); }
+  if (/\bt\(\s*['"]domain\.'\s*\+/.test(source)) dynamicDomain = true;
 }
 
 const problems = [];
@@ -43,6 +45,11 @@ for (const locale of LOCALES) {
   }
   for (const key of Object.keys(STRINGS[locale])) {
     if (!(key in STRINGS.it)) problems.push(`${locale} has extra ${key}`);
+  }
+}
+if (dynamicDomain) {
+  for (const key of base) {
+    if (/^domain\.[A-Za-z]+\.(name|desc)$/.test(key)) used.add(key);
   }
 }
 for (const key of used) {

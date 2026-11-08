@@ -47,6 +47,22 @@ DATASET_GZ = os.path.join(DIST, "dataset.json.gz")
 DATASET_JS = os.path.join(WEB_DATA, "dataset.js")
 TRANSLATIONS_DIR = os.path.join(WEB_DATA, "translations")
 TRANSLATION_LOCALES = ["it", "es", "fr", "zh", "ar", "hi"]
+
+# Fixed OECD capability domain order. The paper's Table 6.1 gives the current AI
+# level per domain (AIi). The workbook stores demand and gap per occupation; the
+# AI level is the maximum over occupations of demand - gap, clipped to 1..5.
+DOMAIN_KEYS = ["Lang", "Soc", "ProbSolv", "Creativity", "Metacognition", "KLM", "Vision", "Manip", "Robot"]
+DOMAIN_META = {
+    "Lang": ("Lang_Gap", "Lang_Dmd"),
+    "Soc": ("Soc_Gap", "Soc_Dmd"),
+    "ProbSolv": ("ProbSolv_Gap", "ProbSolv_Dmd"),
+    "Creativity": ("Creativity_Gap", "Creativity_Dmd"),
+    "Metacognition": ("Metacognition_Gap", "Metacognition_Dmd"),
+    "KLM": ("KLM_Gap", "KLM_Dmd"),
+    "Vision": ("Vision_Gap", "Vision_Dmd"),
+    "Manip": ("Manip_Gap", "Manip_Dmd"),
+    "Robot": ("Robot_Gap", "Robot_Dmd"),
+}
 MATCH_REPORT = os.path.join(DIST, "match_report.json")
 
 SCHEMA_VERSION = 1
@@ -114,12 +130,29 @@ def load_oecd() -> dict[str, dict]:
         exposure = row[columns["AI Capability Gap Index_Rev. norm."]]
         if not isinstance(gap, float) or not isinstance(exposure, float):
             continue
+        domain_gaps = []
+        domain_demands = []
+        for key in DOMAIN_KEYS:
+            gap_column, demand_column = DOMAIN_META[key]
+            domain_gaps.append(round(float(row[columns[gap_column]] or 0.0), 2))
+            domain_demands.append(round(float(row[columns[demand_column]] or 0.0), 2))
         scores[code] = {
             "title": str(row[columns["OCC_Title"]]).strip(),
             "gap": gap,
             "exposure": exposure,
+            "dg": domain_gaps,
+            "dd": domain_demands,
         }
     return scores
+
+
+def ai_capability_levels(oecd: dict[str, dict]) -> list[float]:
+    """Current AI level per domain: max over occupations of demand - gap, clipped to 1..5."""
+    levels = []
+    for index in range(len(DOMAIN_KEYS)):
+        values = [entry["dd"][index] - entry["dg"][index] for entry in oecd.values()]
+        levels.append(round(max(1.0, min(5.0, max(values))), 2))
+    return levels
 
 
 def load_translations() -> dict:
@@ -143,6 +176,7 @@ def build() -> dict:
     onet = load_onet()
     oecd = load_oecd()
     translations = load_translations()
+    ai_capability = ai_capability_levels(oecd)
 
     joined = sorted(code for code in oecd if code in onet["occupation_dwa"] and code in onet["occupations"])
     missing_score = sorted(code for code in onet["occupations"] if code not in oecd)
@@ -189,6 +223,8 @@ def build() -> dict:
             "g": round(score["gap"], 4),
             "e": round(score["exposure"], 4),
             "dwa": sorted(dwa_index[dwa] for dwa in onet["occupation_dwa"][code]),
+            "dg": score["dg"],
+            "dd": score["dd"],
         }
         translated = {
             locale: values["occupations"][code]
@@ -247,6 +283,8 @@ def build() -> dict:
                 "gap_direction": "lower is more exposed",
             },
         },
+        "domains": DOMAIN_KEYS,
+        "aiCapability": ai_capability,
         "gwas": [onet["names"].get(element, element) for element in gwa_ids],
         "iwas": [onet["names"].get(element, element) for element in iwa_ids],
         "dwas": dwas,
@@ -327,6 +365,18 @@ def check() -> int:
         failures.append("an exposure value is outside 0 to 1")
     if not meta["dwa_per_occupation"]["histogram"]:
         failures.append("the DWA histogram is empty")
+    if len(bundle.get("domains", [])) != 9:
+        failures.append("domains must list nine capability keys")
+    levels = bundle.get("aiCapability", [])
+    if len(levels) != 9 or any(not 1.0 <= value <= 5.0 for value in levels):
+        failures.append("aiCapability must hold nine levels between 1 and 5")
+    for entry in occupations:
+        if len(entry.get("dg", [])) != 9 or len(entry.get("dd", [])) != 9:
+            failures.append(f"{entry['c']} misses domain gaps or demands")
+            break
+        if any(value < 0.0 or value > 5.0 for value in entry["dg"] + entry["dd"]):
+            failures.append(f"{entry['c']} has a domain value outside 0 to 5")
+            break
 
     for failure in failures:
         print(f"FAIL {failure}")

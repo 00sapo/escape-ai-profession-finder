@@ -33,6 +33,7 @@
     shown: 0,
     origin: 'tree',
     infoDwa: -1,
+    detailOccupation: -1,
     selectedOccupations: [],
     activityOrder: [],
     activityEnabled: new Map()
@@ -154,6 +155,11 @@
       'activity-info-text',
       'activity-info-occupations',
       'activity-info-close',
+      'occupation-detail',
+      'occupation-detail-title',
+      'occupation-detail-total',
+      'domain-list',
+      'occupation-detail-close',
       'score-value',
       'score-uncertainty',
       'gap-histogram',
@@ -214,6 +220,9 @@
     elements.locale.value = i18n.get();
     if (state.infoDwa >= 0 && elements['activity-info'] && elements['activity-info'].open) {
       fillInfo(state.infoDwa);
+    }
+    if (state.detailOccupation >= 0 && elements['occupation-detail'] && elements['occupation-detail'].open) {
+      openOccupationDetail(state.detailOccupation);
     }
   }
 
@@ -768,6 +777,53 @@
     container.appendChild(list);
   }
 
+  function openOccupationDetail(occupationIndex) {
+    var entry = dataset.occupations[occupationIndex];
+    if (!entry) {
+      return;
+    }
+    state.detailOccupation = occupationIndex;
+    elements['occupation-detail-title'].textContent = occupationLabel(occupationIndex);
+    elements['occupation-detail-total'].textContent = t('domain.total', { gap: format(entry.g) });
+    var list = elements['domain-list'];
+    list.textContent = '';
+    dataset.domains.forEach(function (key, position) {
+      var gap = entry.dg[position];
+      var level = dataset.aiCapability[position];
+      var row = document.createElement('li');
+      row.className = 'domain-row';
+      row.setAttribute('data-domain', key);
+      row.appendChild(element('span', 'domain-name', t('domain.' + key + '.name')));
+      row.appendChild(
+        element(
+          'span',
+          'domain-metrics',
+          t('domain.level', { value: format(level) }) + ' · ' + t('domain.gap', { value: format(gap) })
+        )
+      );
+      var track = element('span', 'domain-bar-track');
+      var bar = element('span', 'domain-bar');
+      bar.style.width = Math.max(0, Math.min(100, Math.round((gap / 5) * 100))) + '%';
+      track.appendChild(bar);
+      row.appendChild(track);
+      row.appendChild(element('span', 'domain-desc', t('domain.' + key + '.desc')));
+      list.appendChild(row);
+    });
+    var dialog = elements['occupation-detail'];
+    if (!dialog.open) {
+      dialog.showModal();
+    }
+    elements['occupation-detail-close'].focus();
+  }
+
+  function closeOccupationDetail() {
+    var dialog = elements['occupation-detail'];
+    if (dialog.open) {
+      dialog.close();
+    }
+    state.detailOccupation = -1;
+  }
+
   function closeInfo() {
     var panel = elements['activity-info'];
     if (typeof panel.close === 'function') {
@@ -933,6 +989,9 @@
     var item = document.createElement('li');
     var details = document.createElement('details');
     details.className = 'ranking-card';
+    details.setAttribute('data-occupation', String(occupation));
+    details.setAttribute('tabindex', '0');
+    details.setAttribute('aria-haspopup', 'dialog');
     var band = gapBand(entry.g);
     var hue = Math.round((band / 100) * 120);
     details.setAttribute('data-gap-band', String(band));
@@ -1064,6 +1123,9 @@
     if (elements['activity-info'].open) {
       closeInfo();
     }
+    if (elements['occupation-detail'].open) {
+      closeOccupationDetail();
+    }
     state.infoDwa = -1;
     state.selectedOccupations = [];
     state.activityOrder = [];
@@ -1177,6 +1239,33 @@
     elements.restart.addEventListener('click', restart);
     elements.more.addEventListener('click', function () {
       renderRanking(false);
+    });
+    elements.ranking.addEventListener('click', function (event) {
+      var summary = event.target.closest ? event.target.closest('summary') : null;
+      if (!summary) {
+        return;
+      }
+      var card = summary.closest('details.ranking-card');
+      if (!card) {
+        return;
+      }
+      event.preventDefault();
+      openOccupationDetail(Number(card.getAttribute('data-occupation')));
+    });
+    elements.ranking.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+      var card = event.target.closest ? event.target.closest('details.ranking-card') : null;
+      if (!card) {
+        return;
+      }
+      event.preventDefault();
+      openOccupationDetail(Number(card.getAttribute('data-occupation')));
+    });
+    elements['occupation-detail-close'].addEventListener('click', closeOccupationDetail);
+    elements['occupation-detail'].addEventListener('close', function () {
+      state.detailOccupation = -1;
     });
     elements.locale.addEventListener('change', function () {
       setLocale(elements.locale.value);
