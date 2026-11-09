@@ -18,8 +18,8 @@
    * fails when these numbers and the report disagree. */
   var TUNING = {
     maxSupport: 6,
-    learningRate: 1,
-    stopStability: 0.632,
+    learningRate: 0.4,
+    stopStability: 0.604,
     titleWeight: 0.3,
     titlePrior: 20
   };

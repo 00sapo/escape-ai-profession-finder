@@ -77,7 +77,7 @@
   <h2 id="estimation">Estimation algorithm</h2>
   <p>The model uses exponentiated gradient ascent. Let <code>G<sub>o</sub></code> be the bracket in the gradient without the positive factor <code>(1 − 2ε)</code>. The update is:</p>
   <div class="formula" data-tex="\theta_o^{(t+1)} = \frac{\theta_o^{(t)} \exp\left(\eta G_o^{(t)} / \lVert G^{(t)} \rVert_\infty\right)}{Z_t}">θ<sub>o</sub><sup>(t+1)</sup> = θ<sub>o</sub><sup>(t)</sup> exp(η G<sub>o</sub><sup>(t)</sup> / ||G<sup>(t)</sup>||<sub>∞</sub>) / Z<sub>t</sub></div>
-  <p><code>Z<sub>t</sub></code> normalizes the weights to one. The step is normalized by the largest gradient component. Dropping <code>(1 − 2ε)</code> rescales the step only. The page uses <code>η = 1</code> and 320 iterations. The library default is <code>η = 0.7</code>. The update has no convergence test.</p>
+  <p><code>Z<sub>t</sub></code> normalizes the weights to one. The step is normalized by the largest gradient component. Dropping <code>(1 − 2ε)</code> rescales the step only. The page uses <code>η = 0.4</code> and 320 iterations. The library default is <code>η = 0.7</code>. The update has no convergence test.</p>
   <p>After the first optimization, the model sparsifies the support. It sorts the weights and keeps the smallest set <code>K</code> with at least 2 occupations, at most 6 occupations, and cumulative mass at least 0.9. If no such set exists, it keeps 6 occupations. The library default is 8. It renormalizes the weights and runs 240 more updates on the trimmed support.</p>
   <p>If <code>P</code> equals the full activity set of one occupation and <code>Q</code> is empty, the model sets the weight of that occupation to one and skips the optimization. This is a maximizer of <code>F</code>, because every performed activity is present at probability <code>1 − ε</code>.</p>
 
@@ -112,7 +112,7 @@
 
   <h2 id="validation">Validation</h2>
   <p>The harness splits the 879 occupations with an FNV-1a hash of the O*NET-SOC code. It tunes the two hyperparameters on 547 occupations. It reports on 332 held-out occupations.</p>
-  <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed. It adds 2 or 3 random denied activities that the occupation does not contain. It excludes the true occupation from the candidate pool, so the model cannot select it or copy its score. It supplies no frequency map, so every weight is one. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
+  <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed and perturbs their order in blocks of 3 or 4. It adds 7 or 8 random denied activities that the occupation does not contain. It excludes the true occupation from the candidate pool, so the model cannot select it or copy its score. It supplies no frequency map. The weight comes from the priority table. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
   <div class="table-wrap">
     <table>
       <thead>
@@ -125,13 +125,13 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td class="num">4</td><td class="num">332</td><td class="num">0.0513</td><td class="num">0.602</td><td class="num">3.17</td></tr>
-        <tr><td class="num">10</td><td class="num">318</td><td class="num">0.0457</td><td class="num">0.651</td><td class="num">3.30</td></tr>
-        <tr><td class="num">20</td><td class="num">169</td><td class="num">0.0395</td><td class="num">0.692</td><td class="num">3.95</td></tr>
+        <tr><td class="num">4</td><td class="num">332</td><td class="num">0.0541</td><td class="num">0.560</td><td class="num">2.95</td></tr>
+        <tr><td class="num">10</td><td class="num">318</td><td class="num">0.0432</td><td class="num">0.673</td><td class="num">3.34</td></tr>
+        <tr><td class="num">20</td><td class="num">169</td><td class="num">0.0411</td><td class="num">0.722</td><td class="num">3.89</td></tr>
       </tbody>
     </table>
   </div>
-  <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0410, within 0.05 0.675, and mean support 4.00.</p>
+  <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0430, within 0.05 0.686, and mean support 4.19.</p>
   <p>The thresholds are MAE at most 0.05 and at least 65 percent of estimates within 0.05. The check uses the <code>n = 20</code> bucket. The harness writes <code>data/dist/validation_report.json</code> and exits non-zero when a threshold is missed.</p>
   <p>The activity harness passes no title similarity. A separate title check verifies the fuzzy matcher, the symmetry of the score, the typo case, the ranking fusion, and the title prior. It runs with <code>npm run check:title</code>.</p>
 
@@ -139,7 +139,7 @@
   <ul>
     <li>The true occupation is excluded from the candidate pool. The model cannot select it. The protocol still uses the true occupation's activities as evidence, so it measures estimation from a known profile, not generalization to unseen occupations.</li>
     <li>The harness samples evidence from the same occupation. It does not use real user profiles.</li>
-    <li>The harness uses unit weights and 2 or 3 random denied activities. It does not exercise the priority table, the frequency path, or the title similarity. Separate checks cover the priority table and the title similarity. The frequency path has no check.</li>
+    <li>The harness uses the priority table and 7 or 8 random denied activities. It does not exercise the frequency path. Separate checks cover the title similarity. The frequency path has no check.</li>
     <li>The bootstrap resamples activities, not users. The standard deviation is a sensitivity measure, not a confidence interval.</li>
     <li>The likelihood is not identifiable. Occupations with equal or nested activity sets give the same fit. The sparsification rule selects one maximizer.</li>
     <li>The OECD index is not a causal prediction. A low gap does not prove that AI will replace the occupation.</li>

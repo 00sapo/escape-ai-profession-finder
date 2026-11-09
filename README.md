@@ -104,11 +104,12 @@ protocol, the held-out results, and the limitations.
 
 The validation harness samples activities from known occupations and compares
 the estimate with the OECD score. It removes the true occupation from the
-candidate pool and adds 2 or 3 random denied activities to each fit. It tunes on
-547 occupations and reports on 332 held-out occupations. The thresholds are a
-mean absolute error at most 0.05 and at least 65 percent of estimates within
-0.05. The check uses the n = 20 bucket. The technical notice gives the results
-and the limitations of the protocol.
+candidate pool, perturbs the activity order in blocks of 3 or 4, and adds 7 or 8
+random denied activities to each fit. It tunes on 547 occupations and reports on
+332 held-out occupations. The thresholds are a mean absolute error at most 0.05
+and at least 65 percent of estimates within 0.05. The check uses the n = 20
+bucket. The technical notice gives the results and the limitations of the
+protocol.
 
 ## Privacy
 

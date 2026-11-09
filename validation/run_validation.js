@@ -89,6 +89,27 @@ function sampleActivities(list, count, random) {
   return Int32Array.from(pool.slice(0, Math.min(count, pool.length)));
 }
 
+/* Shuffle consecutive blocks of 3 or 4 activities. This simulates a user who
+ * knows the order between small groups but not inside them. */
+function perturbBlocks(values, random) {
+  const out = [];
+  let index = 0;
+  while (index < values.length) {
+    const remaining = values.length - index;
+    const size = remaining <= 4 ? remaining : random() < 0.5 ? 3 : 4;
+    const block = Array.from(values.slice(index, index + size));
+    for (let i = block.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1));
+      const swap = block[i];
+      block[i] = block[j];
+      block[j] = swap;
+    }
+    out.push(...block);
+    index += size;
+  }
+  return Int32Array.from(out);
+}
+
 /* Draw activities that the occupation does not contain and that the performed
  * set does not contain, so a denied activity never contradicts a performed one. */
 function sampleDenied(index, occupation, performed, count, random) {
@@ -139,11 +160,14 @@ function evaluate(index, model, occupations, options) {
           performed[i] = dwa;
         }
       }
-      const deniedCount = 2 + Math.floor(random() * 2);
+      const deniedCount = 7 + Math.floor(random() * 2);
       const denied = sampleDenied(index, occupation, performed, deniedCount, random);
+      const priority = perturbBlocks(performed, random);
       const evidence = {
         performed,
         denied: options.ignoreDenied ? new Int32Array(0) : denied,
+        priority,
+        priorityImportance: index.dataset.priorityImportance,
         exclude: [occupation]
       };
       if (titleSimilarity) {
