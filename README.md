@@ -57,8 +57,8 @@ npm run verify
 ```
 
 The command runs the data check, the tuning check, the i18n check, the
-translation check, the validation harness, the priority harness, and the
-Playwright tests.
+translation check, the validation harness, the priority harness, the title
+check, and the Playwright tests.
 
 ## Sources
 
@@ -79,6 +79,12 @@ occupations by a weighted geometric mean of the activity probabilities. It fits
 the blend with exponentiated gradient ascent on the simplex. It then keeps the
 smallest support that carries most of the weight. The order of the declared
 activities supplies the evidence weights through the O*NET importance table.
+
+The ranking also blends a fuzzy title similarity with a weight of 0.3. The
+matcher compares the chosen occupation titles with each occupation title. It
+folds case and diacritics, drops common words, and matches tokens by character
+bigrams. The title term changes the ranking and the displayed similarity. It
+does not change the blend weights, the support, or the gap estimate.
 
 The model code is `web/js/model.js`. The technical notice at
 `web/technical-notice.html` gives the equations, the constants, the validation

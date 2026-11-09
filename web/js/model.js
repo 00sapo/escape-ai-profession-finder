@@ -22,6 +22,7 @@
     iterations: 320,
     refineIterations: 240,
     learningRate: 0.7,
+    titleWeight: 0.3,
     resamples: 24,
     bootstrapShare: 0.8
   };
@@ -178,7 +179,8 @@
       deniedWeights: deniedWeights,
       frequency: evidence.frequency,
       priority: evidence.priority ? Int32Array.from(evidence.priority) : null,
-      priorityImportance: evidence.priorityImportance || null
+      priorityImportance: evidence.priorityImportance || null,
+      titleSimilarity: evidence.titleSimilarity || null
     };
   }
 
@@ -321,14 +323,34 @@
     };
   }
 
+  /* The title similarity is a ranking prior, not part of the activity
+   * likelihood. It blends the activity similarity with the fuzzy title score.
+   * With no title array the combined score equals the activity score. */
+  function applyTitleFusion(scored, titleSimilarity, titleWeight) {
+    var n = scored.similarity.length;
+    var combined = new Float64Array(n);
+    var weight = titleSimilarity ? titleWeight : 0;
+    if (typeof weight !== 'number' || !isFinite(weight)) {
+      weight = 0;
+    }
+    weight = Math.max(0, Math.min(1, weight));
+    for (var o = 0; o < n; o += 1) {
+      var title = titleSimilarity ? titleSimilarity[o] : 0;
+      combined[o] = (1 - weight) * scored.similarity[o] + weight * title;
+    }
+    scored.combinedSimilarity = combined;
+    scored.titleWeight = weight;
+  }
+
   function rankOccupations(index, scored, weights) {
+    var similarity = scored.combinedSimilarity || scored.similarity;
     var order = [];
     for (var o = 0; o < index.nOcc; o += 1) {
       order.push(o);
     }
     order.sort(function (a, b) {
-      if (scored.similarity[b] !== scored.similarity[a]) {
-        return scored.similarity[b] - scored.similarity[a];
+      if (similarity[b] !== similarity[a]) {
+        return similarity[b] - similarity[a];
       }
       var priorityB = scored.priorityScore ? scored.priorityScore[b] : 0;
       var priorityA = scored.priorityScore ? scored.priorityScore[a] : 0;
@@ -510,6 +532,7 @@
     var settings = Object.assign({}, DEFAULTS, options || {});
     var started = now();
     var scored = scoreOccupations(index, evidence);
+    applyTitleFusion(scored, evidence.titleSimilarity, settings.titleWeight);
     var exact = exactOccupation(index, evidence);
     if (exact >= 0) {
       var result = summarize(index, evidence, scored, [exact], new Float64Array([1]));
@@ -602,7 +625,8 @@
       exposure: exposure,
       gap: gap,
       effectiveSupport: concentration > 0 ? 1 / concentration : 0,
-      similarity: scored.similarity,
+      similarity: scored.combinedSimilarity || scored.similarity,
+      activitySimilarity: scored.similarity,
       shared: scored.shared,
       ranking: ranking,
       top: top,

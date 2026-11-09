@@ -36,6 +36,7 @@
       <li><a href="#estimation">Estimation algorithm</a></li>
       <li><a href="#estimate">Estimate and uncertainty</a></li>
       <li><a href="#priority">Priority weights</a></li>
+      <li><a href="#title">Title similarity</a></li>
       <li><a href="#validation">Validation</a></li>
       <li><a href="#limits">What the validation does not show</a></li>
       <li><a href="#reproduce">Reproduce</a></li>
@@ -88,6 +89,15 @@
   <p>When the caller supplies no frequency map, the weight of a declared activity comes from the priority table. The table has 21 values. It is monotone non-increasing. It comes from O*NET importance ratings pooled over occupations and stretched linearly to the range 1 to 5. A declared activity at relative position <code>q</code> takes the linearly interpolated value <code>τ(q)</code>.</p>
   <p>The page passes the activity order and the priority table. It does not expose a frequency control. The model API accepts an optional frequency map. A supplied frequency from 1 to 5 replaces the priority weight. A missing entry in a supplied map gets weight one.</p>
 
+  <h2 id="title">Title similarity</h2>
+  <p>The ranking also uses the occupation titles. For every occupation, the app computes a fuzzy title similarity against the titles of the chosen occupations. The score is the maximum over the chosen titles:</p>
+  <div class="formula" role="math">t<sub>o</sub> = max<sub>r</sub> sim(title<sub>o</sub>, title<sub>r</sub>)</div>
+  <p>Here <code>title<sub>r</sub></code> is the title of a chosen occupation.</p>
+  <p>The matcher folds case and diacritics, splits on any non-letter or non-digit, and drops common words. It compares every token with the best token on the other side. A token match is the Dice coefficient of the character bigrams, with a prefix bonus. The score is symmetric and lies between 0 and 1. A typo keeps most of the score. An unrelated term scores zero.</p>
+  <p>The ranking similarity combines the activity similarity and the title similarity:</p>
+  <div class="formula" role="math">s*<sub>o</sub> = (1 − λ) s<sub>o</sub> + λ t<sub>o</sub>, &nbsp; λ = 0.3</div>
+  <p>The title term changes the ranking and the displayed similarity. It does not change the blend weights, the support, or the gap estimate. The gap remains a function of the declared activities.</p>
+
   <h2 id="validation">Validation</h2>
   <p>The harness splits the 879 occupations with an FNV-1a hash of the O*NET-SOC code. It tunes the two hyperparameters on 547 occupations. It reports on 332 held-out occupations.</p>
   <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed. It supplies no denied activities and no frequency map, so every weight is one. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
@@ -111,12 +121,13 @@
   </div>
   <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0041, top-10 0.994, and rank-1 0.959.</p>
   <p>The thresholds are MAE at most 0.05 and top-10 at least 0.70. The harness writes <code>data/dist/validation_report.json</code> and exits non-zero when a threshold is missed.</p>
+  <p>The activity harness passes no title similarity. A separate title check verifies the fuzzy matcher, the symmetry of the score, the typo case, and the ranking effect. It runs with <code>npm run check:title</code>.</p>
 
   <h2 id="limits">What the validation does not show</h2>
   <ul>
     <li>The true occupation stays in the candidate pool. The protocol is transductive. It measures recovery, not generalization to unseen occupations.</li>
     <li>The harness samples evidence from the same occupation. It does not use real user profiles.</li>
-    <li>The harness uses unit weights and no denied activities. It does not validate the priority table or the frequency path.</li>
+    <li>The harness uses unit weights and no denied activities. It does not exercise the priority table, the frequency path, or the title similarity. Separate checks cover the priority table and the title similarity. The frequency path has no check.</li>
     <li>The bootstrap resamples activities, not users. The standard deviation is a sensitivity measure, not a confidence interval.</li>
     <li>The likelihood is not identifiable. Occupations with equal or nested activity sets give the same fit. The sparsification rule selects one maximizer.</li>
     <li>The OECD index is not a causal prediction. A low gap does not prove that AI will replace the occupation.</li>
@@ -127,8 +138,9 @@
 npm run check:tuning
 npm run validate
 npm run check:priority
+npm run check:title
 npm run verify</code></pre>
-  <p><code>npm run verify</code> runs the data check, the tuning check, the i18n check, the translation check, the validation harness, the priority harness, and the Playwright tests.</p>
+  <p><code>npm run verify</code> runs the data check, the tuning check, the i18n check, the translation check, the validation harness, the priority harness, the title check, and the Playwright tests.</p>
 
   <h2 id="references">References</h2>
   <ul>
@@ -138,6 +150,7 @@ npm run verify</code></pre>
     <li>Model source: <code>web/js/model.js</code>.</li>
     <li>Validation harness: <code>validation/run_validation.js</code>.</li>
     <li>Priority harness: <code>validation/priority_check.js</code>.</li>
+    <li>Title check: <code>validation/title_check.js</code>.</li>
   </ul>
 
 </main>

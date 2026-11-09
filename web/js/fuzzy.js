@@ -97,6 +97,98 @@
     return best <= 2 ? 10 - best : 0;
   }
 
+  /* Pairwise title similarity. Fold case and diacritics, split on any
+   * non-letter or non-digit, drop common words, then compare every token with
+   * the best token on the other side. A token match is one minus the edit
+   * distance divided by the longer length, so a typo keeps most of the score.
+   * The result is symmetric and lies between 0 and 1. */
+  var STOPWORDS = new Set([
+    'a', 'an', 'and', 'the', 'of', 'in', 'on', 'for', 'to', 'with', 'at', 'by', 'from',
+    'di', 'del', 'della', 'dei', 'delle', 'e', 'ed', 'per', 'con', 'da', 'un', 'una', 'uno',
+    'y', 'el', 'la', 'las', 'los', 'de', 'en', 'por', 'para',
+    'et', 'le', 'les', 'des', 'du', 'pour', 'avec', 'une',
+    'و', 'في', 'من', 'على', 'إلى',
+    'का', 'के', 'की', 'में', 'और',
+    '的', '和', '与', '在'
+  ]);
+
+  function tokenize(text) {
+    return fold(text)
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(function (token) {
+        return token && !STOPWORDS.has(token);
+      });
+  }
+
+  function bigrams(text) {
+    var grams = [];
+    for (var i = 0; i < text.length - 1; i += 1) {
+      grams.push(text.slice(i, i + 2));
+    }
+    return grams;
+  }
+
+  function tokenSimilarity(a, b) {
+    if (a === b) {
+      return 1;
+    }
+    if (a.indexOf(b) === 0 || b.indexOf(a) === 0) {
+      return 1;
+    }
+    var left = bigrams(a);
+    var right = bigrams(b);
+    if (left.length === 0 || right.length === 0) {
+      return 0;
+    }
+    var counts = new Map();
+    var i;
+    for (i = 0; i < left.length; i += 1) {
+      counts.set(left[i], (counts.get(left[i]) || 0) + 1);
+    }
+    var overlap = 0;
+    for (i = 0; i < right.length; i += 1) {
+      var count = counts.get(right[i]) || 0;
+      if (count > 0) {
+        overlap += 1;
+        counts.set(right[i], count - 1);
+      }
+    }
+    return (2 * overlap) / (left.length + right.length);
+  }
+
+  function similarity(left, right) {
+    var leftTokens = tokenize(left);
+    var rightTokens = tokenize(right);
+    if (leftTokens.length === 0 || rightTokens.length === 0) {
+      return 0;
+    }
+    var total = 0;
+    var i;
+    var j;
+    var best;
+    for (i = 0; i < leftTokens.length; i += 1) {
+      best = 0;
+      for (j = 0; j < rightTokens.length; j += 1) {
+        var forward = tokenSimilarity(leftTokens[i], rightTokens[j]);
+        if (forward > best) {
+          best = forward;
+        }
+      }
+      total += best;
+    }
+    for (j = 0; j < rightTokens.length; j += 1) {
+      best = 0;
+      for (i = 0; i < leftTokens.length; i += 1) {
+        var backward = tokenSimilarity(rightTokens[j], leftTokens[i]);
+        if (backward > best) {
+          best = backward;
+        }
+      }
+      total += best;
+    }
+    return total / (leftTokens.length + rightTokens.length);
+  }
+
   /* Returns [{index, score}] sorted by score, then title, capped at limit. */
   function search(query, titles, limit) {
     var hits = [];
@@ -118,5 +210,5 @@
     return hits.slice(0, limit);
   }
 
-  root.AIExposureFuzzy = { search: search, fold: fold };
+  root.AIExposureFuzzy = { search: search, similarity: similarity, fold: fold };
 })(typeof self !== 'undefined' ? self : globalThis);
