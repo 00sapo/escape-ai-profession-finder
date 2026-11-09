@@ -917,6 +917,7 @@ body[data-screen="rank"] .wrap {
 
 .bucket-controls {
   display: flex;
+  flex-direction: column;
   flex: none;
   gap: 0.15rem;
 }
@@ -951,6 +952,18 @@ body[data-screen="rank"] .wrap {
 }
 
 @media (min-width: 720px) {
+  .bucket-controls {
+    flex-direction: row;
+  }
+
+  .arrow-less {
+    order: 1;
+  }
+
+  .arrow-more {
+    order: 2;
+  }
+
   .arrow-more::before {
     content: "→";
   }

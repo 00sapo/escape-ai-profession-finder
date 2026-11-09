@@ -167,13 +167,16 @@ test('the high bucket is on the right in horizontal view and above in vertical v
 test('the move arrows follow the layout', async ({ page }) => {
   await establish(page, 10);
   await expect(page.locator('#rank-board')).toBeVisible();
-  const content = await page
-    .locator('#rank-board [data-bucket-move="more"]')
-    .first()
-    .evaluate((node) => getComputedStyle(node, '::before').content);
+  const more = page.locator('#rank-board [data-bucket-move="more"]').first();
+  const less = page.locator('#rank-board [data-bucket-move="less"]').first();
+  const content = await more.evaluate((node) => getComputedStyle(node, '::before').content);
+  const moreBox = await more.boundingBox();
+  const lessBox = await less.boundingBox();
   if (page.viewportSize().width >= 720) {
     expect(content).toContain('→');
+    expect(lessBox.x).toBeLessThan(moreBox.x);
   } else {
     expect(content).toContain('↑');
+    expect(moreBox.y).toBeLessThan(lessBox.y);
   }
 });
