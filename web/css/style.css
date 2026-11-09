@@ -1130,6 +1130,18 @@ li[data-dragging="true"] {
   line-height: 1.6;
 }
 
+.notice .formula .katex-display {
+  margin: 0;
+}
+
+.notice .formula .katex {
+  font-size: 1.05em;
+}
+
+.notice .math-inline .katex {
+  font-size: 1em;
+}
+
 .notice .table-wrap {
   margin: 0.75rem 0 1rem;
   overflow-x: auto;

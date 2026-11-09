@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Technical Notice - Escape AI - Profession Finder</title>
 <meta name="description" content="Statistical model and validation of the Escape AI - Profession Finder estimate.">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -45,43 +46,43 @@
   </nav>
 
   <h2 id="scope">Scope and data</h2>
-  <p>The site works on the 879 O*NET occupations that carry an OECD score. The O*NET 31.0 text database supplies 2084 detailed work activities and 17712 occupation-activity links. The median occupation has 20 activities. The OECD 2026 workbook supplies the total gap index and the reversed normalized index. The OECD states that the total gap index has an effective maximum of 23. The reversed normalized index is <code>e = 1 - g / 23</code>. A low gap means high exposure.</p>
+  <p>The site works on the 879 O*NET occupations that carry an OECD score. The O*NET 31.0 text database supplies 2084 detailed work activities and 17712 occupation-activity links. The median occupation has 20 activities. The OECD 2026 workbook supplies the total gap index and the reversed normalized index. The OECD states that the total gap index has an effective maximum of 23. The reversed normalized index is <span class="math-inline" data-tex="e = 1 - g/23" data-display="false">e = 1 - g / 23</span>. A low gap means high exposure.</p>
   <p>The site ranks all 879 occupations. It does not restrict the candidate pool to the occupations that the user chose. The chosen occupations only build the initial activity list.</p>
 
   <h2 id="evidence">Evidence model</h2>
   <p>The user declares a performed set <code>P</code> and a denied set <code>Q</code>. Every other activity is missing. A missing activity is not an absent activity. It does not enter the likelihood.</p>
   <p>Each declared activity carries a positive weight. The weight is the O*NET frequency from 1 to 5 when the caller supplies one. Otherwise the weight comes from the priority table described below. With smoothing <code>ε = 0.02</code>, the probability that occupation <code>o</code> contains activity <code>d</code> is:</p>
-  <div class="formula" role="math">p<sub>o</sub>(d) = (1 − ε) a<sub>od</sub> + ε (1 − a<sub>od</sub>)</div>
+  <div class="formula" data-tex="p_o(d) = (1-\varepsilon)a_{od} + \varepsilon(1-a_{od})">p<sub>o</sub>(d) = (1 − ε) a<sub>od</sub> + ε (1 − a<sub>od</sub>)</div>
   <p>The weighted log-likelihood of the evidence under occupation <code>o</code> is:</p>
-  <div class="formula" role="math">ℓ<sub>o</sub> = Σ<sub>i ∈ P</sub> w<sub>i</sub> log p<sub>o</sub>(i) + Σ<sub>j ∈ Q</sub> v<sub>j</sub> log(1 − p<sub>o</sub>(j))</div>
+  <div class="formula" data-tex="\ell_o = \sum_{i \in P} w_i \log p_o(i) + \sum_{j \in Q} v_j \log(1-p_o(j))">ℓ<sub>o</sub> = Σ<sub>i ∈ P</sub> w<sub>i</sub> log p<sub>o</sub>(i) + Σ<sub>j ∈ Q</sub> v<sub>j</sub> log(1 − p<sub>o</sub>(j))</div>
   <p>The occupation score is the weighted geometric mean of the per-activity probabilities:</p>
-  <div class="formula" role="math">s<sub>o</sub> = exp(ℓ<sub>o</sub> / W), &nbsp; W = Σ<sub>i ∈ P</sub> w<sub>i</sub> + Σ<sub>j ∈ Q</sub> v<sub>j</sub></div>
+  <div class="formula" data-tex="s_o = \exp(\ell_o / W), \quad W = \sum_{i \in P} w_i + \sum_{j \in Q} v_j">s<sub>o</sub> = exp(ℓ<sub>o</sub> / W), W = Σ<sub>i ∈ P</sub> w<sub>i</sub> + Σ<sub>j ∈ Q</sub> v<sub>j</sub></div>
   <p>For non-empty evidence, <code>s<sub>o</sub></code> lies between 0.02 and 0.98. A single occupation that contains every performed activity scores 0.98. A single occupation that contains none of them scores 0.02.</p>
 
   <h2 id="score">Occupation score and candidate screening</h2>
-  <p>The model ranks occupations by <code>s<sub>o</sub></code>. Ties use the priority score:</p>
-  <div class="formula" role="math">π<sub>o</sub> = Σ<sub>r : d<sub>r</sub> ∈ P ∩ A<sub>o</sub></sub> 1 / (r + 1) − Σ<sub>r : d<sub>r</sub> ∈ Q ∩ A<sub>o</sub></sub> 1 / (r + 1)</div>
+  <p>The activity score orders occupations. The title section below adds a secondary term to the final ranking. Ties use the priority score:</p>
+  <div class="formula" data-tex="\pi_o = \sum_{r : d_r \in P \cap A_o} \frac{1}{r+1} - \sum_{r : d_r \in Q \cap A_o} \frac{1}{r+1}">π<sub>o</sub> = Σ<sub>r : d<sub>r</sub> ∈ P ∩ A<sub>o</sub></sub> 1 / (r + 1) − Σ<sub>r : d<sub>r</sub> ∈ Q ∩ A<sub>o</sub></sub> 1 / (r + 1)</div>
   <p>Here <code>r</code> is the 1-based position in the declared order.</p>
   <p>The top 60 occupations by <code>ℓ<sub>o</sub></code> form the candidate set. The score and the similarity have the same order for a fixed total weight. The top 60 by score are therefore the top 60 by similarity.</p>
 
   <h2 id="blend">Convex blend</h2>
   <p>The declared profile is a convex combination of occupation profiles. The weights <code>θ</code> are not negative and sum to one. For the candidate set <code>C</code>, the probability that the blend contains activity <code>d</code> is:</p>
-  <div class="formula" role="math">q<sub>d</sub>(θ) = ε + (1 − 2ε) Σ<sub>o ∈ C</sub> θ<sub>o</sub> a<sub>od</sub></div>
+  <div class="formula" data-tex="q_d(\theta) = \varepsilon + (1-2\varepsilon)\sum_{o \in C} \theta_o a_{od}">q<sub>d</sub>(θ) = ε + (1 − 2ε) Σ<sub>o ∈ C</sub> θ<sub>o</sub> a<sub>od</sub></div>
   <p>The blend maximizes the weighted log-likelihood:</p>
-  <div class="formula" role="math">F(θ) = Σ<sub>i ∈ P</sub> w<sub>i</sub> log q<sub>i</sub>(θ) + Σ<sub>j ∈ Q</sub> v<sub>j</sub> log(1 − q<sub>j</sub>(θ))</div>
+  <div class="formula" data-tex="F(\theta) = \sum_{i \in P} w_i \log q_i(\theta) + \sum_{j \in Q} v_j \log(1-q_j(\theta))">F(θ) = Σ<sub>i ∈ P</sub> w<sub>i</sub> log q<sub>i</sub>(θ) + Σ<sub>j ∈ Q</sub> v<sub>j</sub> log(1 − q<sub>j</sub>(θ))</div>
   <p><code>F</code> is concave on the simplex. Its gradient is:</p>
-  <div class="formula" role="math">∂F / ∂θ<sub>o</sub> = (1 − 2ε) [ Σ<sub>i ∈ P</sub> w<sub>i</sub> a<sub>oi</sub> / q<sub>i</sub> − Σ<sub>j ∈ Q</sub> v<sub>j</sub> a<sub>oj</sub> / (1 − q<sub>j</sub>) ]</div>
+  <div class="formula" data-tex="\frac{\partial F}{\partial \theta_o} = (1-2\varepsilon)\left[\sum_{i \in P} \frac{w_i a_{oi}}{q_i} - \sum_{j \in Q} \frac{v_j a_{oj}}{1-q_j}\right]">∂F / ∂θ<sub>o</sub> = (1 − 2ε) [ Σ<sub>i ∈ P</sub> w<sub>i</sub> a<sub>oi</sub> / q<sub>i</sub> − Σ<sub>j ∈ Q</sub> v<sub>j</sub> a<sub>oj</sub> / (1 − q<sub>j</sub>) ]</div>
 
   <h2 id="estimation">Estimation algorithm</h2>
   <p>The model uses exponentiated gradient ascent. Let <code>G<sub>o</sub></code> be the bracket in the gradient without the positive factor <code>(1 − 2ε)</code>. The update is:</p>
-  <div class="formula" role="math">θ<sub>o</sub><sup>(t+1)</sup> = θ<sub>o</sub><sup>(t)</sup> exp(η G<sub>o</sub><sup>(t)</sup> / ||G<sup>(t)</sup>||<sub>∞</sub>) / Z<sub>t</sub></div>
+  <div class="formula" data-tex="\theta_o^{(t+1)} = \frac{\theta_o^{(t)} \exp\left(\eta G_o^{(t)} / \lVert G^{(t)} \rVert_\infty\right)}{Z_t}">θ<sub>o</sub><sup>(t+1)</sup> = θ<sub>o</sub><sup>(t)</sup> exp(η G<sub>o</sub><sup>(t)</sup> / ||G<sup>(t)</sup>||<sub>∞</sub>) / Z<sub>t</sub></div>
   <p><code>Z<sub>t</sub></code> normalizes the weights to one. The step is normalized by the largest gradient component. Dropping <code>(1 − 2ε)</code> rescales the step only. The page uses <code>η = 1</code> and 320 iterations. The library default is <code>η = 0.7</code>. The update has no convergence test.</p>
-  <p>After the first optimization, the model sparsifies the support. It sorts the weights and keeps the smallest set <code>K</code> with at least 2 occupations, at most 10 occupations, and cumulative mass at least 0.9. If no such set exists, it keeps 10 occupations. It renormalizes the weights and runs 240 more updates on the trimmed support.</p>
+  <p>After the first optimization, the model sparsifies the support. It sorts the weights and keeps the smallest set <code>K</code> with at least 2 occupations, at most 6 occupations, and cumulative mass at least 0.9. If no such set exists, it keeps 6 occupations. The library default is 8. It renormalizes the weights and runs 240 more updates on the trimmed support.</p>
   <p>If <code>P</code> equals the full activity set of one occupation and <code>Q</code> is empty, the model sets the weight of that occupation to one and skips the optimization. This is a maximizer of <code>F</code>, because every performed activity is present at probability <code>1 − ε</code>.</p>
 
   <h2 id="estimate">Estimate and uncertainty</h2>
   <p>The gap and exposure estimates are:</p>
-  <div class="formula" role="math">ĝ = Σ<sub>o ∈ C</sub> θ<sub>o</sub> g<sub>o</sub>, &nbsp; ê = Σ<sub>o ∈ C</sub> θ<sub>o</sub> e<sub>o</sub></div>
+  <div class="formula" data-tex="\hat{g} = \sum_{o \in C} \theta_o g_o, \quad \hat{e} = \sum_{o \in C} \theta_o e_o">ĝ = Σ<sub>o ∈ C</sub> θ<sub>o</sub> g<sub>o</sub>, ê = Σ<sub>o ∈ C</sub> θ<sub>o</sub> e<sub>o</sub></div>
   <p>The effective support is <code>1 / Σ θ<sub>o</sub><sup>2</sup></code>. A value near one means that one occupation carries the blend. A larger value means that several occupations share the weight.</p>
   <p>Uncertainty is the sample standard deviation of 24 bootstrap refits. Each refit draws <code>max(1, round(0.8 |P|))</code> performed activities and <code>max(0, round(0.8 |Q|))</code> denied activities with replacement. Each drawn activity carries its weight. The refit repeats the full estimation.</p>
 
@@ -91,16 +92,16 @@
 
   <h2 id="title">Title similarity</h2>
   <p>The ranking also uses the occupation titles. For every occupation, the app computes a fuzzy title similarity against the titles of the chosen occupations. The score is the maximum over the chosen titles:</p>
-  <div class="formula" role="math">t<sub>o</sub> = max<sub>r</sub> sim(title<sub>o</sub>, title<sub>r</sub>)</div>
+  <div class="formula" data-tex="t_o = \max_r \operatorname{sim}(\text{title}_o, \text{title}_r)">t<sub>o</sub> = max<sub>r</sub> sim(title<sub>o</sub>, title<sub>r</sub>)</div>
   <p>Here <code>title<sub>r</sub></code> is the title of a chosen occupation.</p>
-  <p>The matcher folds case and diacritics, splits on any non-letter or non-digit, and drops common words. It compares every token with the best token on the other side. A token match is the Dice coefficient of the character bigrams, with a prefix bonus. The score is symmetric and lies between 0 and 1. A typo keeps most of the score. An unrelated term scores zero.</p>
+  <p>The matcher folds case and diacritics, splits on any non-letter or non-digit, and drops common words. It compares every token with the best token on the other side. A token match is the Dice coefficient of the character bigrams, with a prefix bonus. The score is symmetric and lies between 0 and 1. A typo keeps most of the score. An unrelated term scores low or zero.</p>
   <p>The ranking similarity combines the activity similarity and the title similarity:</p>
-  <div class="formula" role="math">s*<sub>o</sub> = (1 − λ) s<sub>o</sub> + λ t<sub>o</sub>, &nbsp; λ = 0.3</div>
+  <div class="formula" data-tex="s^*_o = (1-\lambda) s_o + \lambda t_o, \quad \lambda = 0.3">s*<sub>o</sub> = (1 − λ) s<sub>o</sub> + λ t<sub>o</sub>, λ = 0.3</div>
   <p>The title term changes the ranking and the displayed similarity. It does not change the blend weights, the support, or the gap estimate. The gap remains a function of the declared activities.</p>
 
   <h2 id="validation">Validation</h2>
   <p>The harness splits the 879 occupations with an FNV-1a hash of the O*NET-SOC code. It tunes the two hyperparameters on 547 occupations. It reports on 332 held-out occupations.</p>
-  <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed. It supplies no denied activities and no frequency map, so every weight is one. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
+  <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed. It adds 2 or 3 random denied activities that the occupation does not contain. It excludes the true occupation from the candidate pool, so the model cannot select it or copy its score. It supplies no frequency map, so every weight is one. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
   <div class="table-wrap">
     <table>
       <thead>
@@ -108,26 +109,26 @@
           <th class="num">Activities n</th>
           <th class="num">Occupations</th>
           <th class="num">MAE</th>
-          <th class="num">True occupation in top 10</th>
-          <th class="num">True occupation rank 1</th>
+          <th class="num">Within 0.05</th>
+          <th class="num">Mean support</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td class="num">4</td><td class="num">332</td><td class="num">0.0060</td><td class="num">0.985</td><td class="num">0.883</td></tr>
-        <tr><td class="num">10</td><td class="num">318</td><td class="num">0.00034</td><td class="num">0.997</td><td class="num">0.969</td></tr>
-        <tr><td class="num">20</td><td class="num">169</td><td class="num">0.00061</td><td class="num">0.994</td><td class="num">0.970</td></tr>
+        <tr><td class="num">4</td><td class="num">332</td><td class="num">0.0513</td><td class="num">0.602</td><td class="num">3.17</td></tr>
+        <tr><td class="num">10</td><td class="num">318</td><td class="num">0.0457</td><td class="num">0.651</td><td class="num">3.30</td></tr>
+        <tr><td class="num">20</td><td class="num">169</td><td class="num">0.0395</td><td class="num">0.692</td><td class="num">3.95</td></tr>
       </tbody>
     </table>
   </div>
-  <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0041, top-10 0.994, and rank-1 0.959.</p>
-  <p>The thresholds are MAE at most 0.05 and top-10 at least 0.70. The harness writes <code>data/dist/validation_report.json</code> and exits non-zero when a threshold is missed.</p>
+  <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0410, within 0.05 0.675, and mean support 4.00.</p>
+  <p>The thresholds are MAE at most 0.05 and at least 65 percent of estimates within 0.05. The check uses the <code>n = 20</code> bucket. The harness writes <code>data/dist/validation_report.json</code> and exits non-zero when a threshold is missed.</p>
   <p>The activity harness passes no title similarity. A separate title check verifies the fuzzy matcher, the symmetry of the score, the typo case, and the ranking effect. It runs with <code>npm run check:title</code>.</p>
 
   <h2 id="limits">What the validation does not show</h2>
   <ul>
-    <li>The true occupation stays in the candidate pool. The protocol is transductive. It measures recovery, not generalization to unseen occupations.</li>
+    <li>The true occupation is excluded from the candidate pool. The model cannot select it. The protocol still uses the true occupation's activities as evidence, so it measures estimation from a known profile, not generalization to unseen occupations.</li>
     <li>The harness samples evidence from the same occupation. It does not use real user profiles.</li>
-    <li>The harness uses unit weights and no denied activities. It does not exercise the priority table, the frequency path, or the title similarity. Separate checks cover the priority table and the title similarity. The frequency path has no check.</li>
+    <li>The harness uses unit weights and 2 or 3 random denied activities. It does not exercise the priority table, the frequency path, or the title similarity. Separate checks cover the priority table and the title similarity. The frequency path has no check.</li>
     <li>The bootstrap resamples activities, not users. The standard deviation is a sensitivity measure, not a confidence interval.</li>
     <li>The likelihood is not identifiable. Occupations with equal or nested activity sets give the same fit. The sparsification rule selects one maximizer.</li>
     <li>The OECD index is not a causal prediction. A low gap does not prove that AI will replace the occupation.</li>
@@ -151,6 +152,7 @@ npm run verify</code></pre>
     <li>Validation harness: <code>validation/run_validation.js</code>.</li>
     <li>Priority harness: <code>validation/priority_check.js</code>.</li>
     <li>Title check: <code>validation/title_check.js</code>.</li>
+    <li>Math rendering: KaTeX, MIT license, <code>web/vendor/katex</code>.</li>
   </ul>
 
 </main>
@@ -159,6 +161,24 @@ npm run verify</code></pre>
   <p>Data: O*NET 31.0 and OECD, The OECD AI exposure measure, OECD Artificial Intelligence Papers No. 59, 2026. The score describes potential exposure, not the risk of losing a job.</p>
   <p><a href="index.html">Back to the app</a></p>
 </footer>
+
+<script src="vendor/katex/katex.min.js"></script>
+<script>
+(function () {
+  var nodes = document.querySelectorAll('[data-tex]');
+  for (var i = 0; i < nodes.length; i += 1) {
+    var node = nodes[i];
+    try {
+      katex.render(node.getAttribute('data-tex'), node, {
+        displayMode: node.getAttribute('data-display') !== 'false',
+        throwOnError: false
+      });
+    } catch (error) {
+      /* keep the plain fallback */
+    }
+  }
+})();
+</script>
 
 </body>
 </html>

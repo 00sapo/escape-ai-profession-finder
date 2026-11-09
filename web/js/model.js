@@ -180,7 +180,8 @@
       frequency: evidence.frequency,
       priority: evidence.priority ? Int32Array.from(evidence.priority) : null,
       priorityImportance: evidence.priorityImportance || null,
-      titleSimilarity: evidence.titleSimilarity || null
+      titleSimilarity: evidence.titleSimilarity || null,
+      exclude: evidence.exclude || null
     };
   }
 
@@ -342,10 +343,33 @@
     scored.titleWeight = weight;
   }
 
+  /* Occupations that the caller forbids as candidates. The validation harness
+   * uses this to remove the true occupation, so the estimate cannot copy it. */
+  function excludedMask(index, exclude) {
+    if (!exclude) {
+      return null;
+    }
+    var list = Array.from(exclude);
+    if (list.length === 0) {
+      return null;
+    }
+    var mask = new Uint8Array(index.nOcc);
+    for (var i = 0; i < list.length; i += 1) {
+      var o = list[i];
+      if (o >= 0 && o < index.nOcc) {
+        mask[o] = 1;
+      }
+    }
+    return mask;
+  }
+
   function rankOccupations(index, scored, weights) {
     var similarity = scored.combinedSimilarity || scored.similarity;
     var order = [];
     for (var o = 0; o < index.nOcc; o += 1) {
+      if (scored.exclude && scored.exclude[o]) {
+        continue;
+      }
       order.push(o);
     }
     order.sort(function (a, b) {
@@ -369,6 +393,9 @@
   function candidateSet(scored, limit) {
     var order = [];
     for (var o = 0; o < scored.scores.length; o += 1) {
+      if (scored.exclude && scored.exclude[o]) {
+        continue;
+      }
       order.push(o);
     }
     order.sort(function (a, b) {
@@ -497,7 +524,7 @@
     return fitBlendWeighted(index, evidence, options);
   }
 
-  function exactOccupation(index, evidence) {
+  function exactOccupation(index, evidence, excluded) {
     if (evidence.denied.length > 0 || evidence.performed.length === 0) {
       return -1;
     }
@@ -510,6 +537,9 @@
       }
     }
     for (var o = 0; o < index.nOcc; o += 1) {
+      if (excluded && excluded[o]) {
+        continue;
+      }
       var list = index.occDwa[o];
       if (list.length !== unique) {
         continue;
@@ -532,8 +562,9 @@
     var settings = Object.assign({}, DEFAULTS, options || {});
     var started = now();
     var scored = scoreOccupations(index, evidence);
+    scored.exclude = excludedMask(index, evidence.exclude);
     applyTitleFusion(scored, evidence.titleSimilarity, settings.titleWeight);
-    var exact = exactOccupation(index, evidence);
+    var exact = exactOccupation(index, evidence, scored.exclude);
     if (exact >= 0) {
       var result = summarize(index, evidence, scored, [exact], new Float64Array([1]));
       result.candidates = [exact];
@@ -678,7 +709,8 @@
           denied: denied.indices,
           performedWeights: performed.weights,
           deniedWeights: denied.weights,
-          priority: weighted.priority
+          priority: weighted.priority,
+          exclude: weighted.exclude
         },
         Object.assign({}, settings, { resamples: 0 })
       );

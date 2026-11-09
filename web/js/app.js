@@ -16,9 +16,9 @@
   /* Derived from data/dist/validation_report.json. validation/check_tuning.js
    * fails when these numbers and the report disagree. */
   var TUNING = {
-    maxSupport: 10,
+    maxSupport: 6,
     learningRate: 1,
-    stopStability: 0.059,
+    stopStability: 0.632,
     titleWeight: 0.3
   };
 

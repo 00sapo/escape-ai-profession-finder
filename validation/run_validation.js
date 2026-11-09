@@ -22,7 +22,7 @@ const DATASET = path.join(ROOT, 'data', 'dist', 'dataset.json.gz');
 const MODEL = path.join(ROOT, 'web', 'js', 'model.js');
 const REPORT = path.join(ROOT, 'data', 'dist', 'validation_report.json');
 
-const THRESHOLDS = { mae: 0.05, top10: 0.7 };
+const THRESHOLDS = { mae: 0.05, within: 0.65, tolerance: 0.05 };
 const SAMPLE_SIZES = [4, 5, 6, 8, 10, 12, 15, 20, 25];
 const NOISE_SHARE = 0.15;
 const GRID = [];
@@ -71,6 +71,28 @@ function sampleActivities(list, count, random) {
   return Int32Array.from(pool.slice(0, Math.min(count, pool.length)));
 }
 
+/* Draw activities that the occupation does not contain and that the performed
+ * set does not contain, so a denied activity never contradicts a performed one. */
+function sampleDenied(index, occupation, performed, count, random) {
+  const used = new Set(index.occDwa[occupation]);
+  for (let i = 0; i < performed.length; i += 1) {
+    used.add(performed[i]);
+  }
+  const picked = [];
+  const seen = new Set();
+  let guard = 0;
+  while (picked.length < count && guard < 10000) {
+    guard += 1;
+    const dwa = Math.floor(random() * index.nDwa);
+    if (used.has(dwa) || seen.has(dwa)) {
+      continue;
+    }
+    seen.add(dwa);
+    picked.push(dwa);
+  }
+  return Int32Array.from(picked);
+}
+
 function evaluate(index, model, occupations, options) {
   const random = mulberry32(options.seed);
   const rows = [];
@@ -83,23 +105,35 @@ function evaluate(index, model, occupations, options) {
       }
       const performed = sampleActivities(list, size, random);
       if (options.noise > 0) {
+        const used = new Set(list);
         const injected = Math.max(1, Math.round(size * options.noise));
         for (let i = 0; i < injected; i += 1) {
-          performed[i] = Math.floor(random() * index.nDwa);
+          let dwa = Math.floor(random() * index.nDwa);
+          let guard = 0;
+          while (used.has(dwa) && guard < 10000) {
+            guard += 1;
+            dwa = Math.floor(random() * index.nDwa);
+          }
+          used.add(dwa);
+          performed[i] = dwa;
         }
       }
-      const denied = new Int32Array(0);
-      const fit = model.fitBlend(index, { performed, denied }, options.parameters);
+      const deniedCount = 2 + Math.floor(random() * 2);
+      const denied = sampleDenied(index, occupation, performed, deniedCount, random);
+      const fit = model.fitBlend(
+        index,
+        { performed, denied, exclude: [occupation] },
+        options.parameters
+      );
       const estimate = fit.exposure;
       const truth = index.exposure[occupation];
-      const rank = fit.ranking.rank[occupation];
       rows.push({
         code: index.dataset.occupations[occupation].c,
         size,
         error: Math.abs(estimate - truth),
         truth,
         estimate,
-        rank,
+        support: fit.effectiveSupport,
         stability: previous === null ? null : model.stability(previous, fit)
       });
       previous = fit;
@@ -120,21 +154,22 @@ function summarize(rows) {
   for (const size of [...bySize.keys()].sort((a, b) => a - b)) {
     const bucket = bySize.get(size);
     const mae = bucket.reduce((sum, row) => sum + row.error, 0) / bucket.length;
-    const top10 = bucket.filter((row) => row.rank <= 10).length / bucket.length;
-    const rank1 = bucket.filter((row) => row.rank === 1).length / bucket.length;
+    const within =
+      bucket.filter((row) => row.error <= THRESHOLDS.tolerance).length / bucket.length;
+    const meanSupport = bucket.reduce((sum, row) => sum + row.support, 0) / bucket.length;
     const stable = bucket.filter((row) => row.stability !== null);
     const stability =
       stable.length === 0
         ? 0
         : stable.reduce((sum, row) => sum + row.stability, 0) / stable.length;
-    table.push({ size, count: bucket.length, mae, top10, rank1, stability });
+    table.push({ size, count: bucket.length, mae, within, meanSupport, stability });
   }
   return table;
 }
 
 function minimumSize(table, thresholds) {
   for (const row of table) {
-    if (row.mae <= thresholds.mae && row.top10 >= thresholds.top10) {
+    if (row.mae <= thresholds.mae && row.within >= thresholds.within) {
       return row.size;
     }
   }
@@ -158,12 +193,12 @@ function tune(index, model, tuning, seed) {
     const table = summarize(rows);
     const target = table.filter((row) => row.size === 15 || row.size === 20);
     const mae = target.reduce((sum, row) => sum + row.mae, 0) / target.length;
-    const top10 = target.reduce((sum, row) => sum + row.top10, 0) / target.length;
-    results.push({ parameters, mae, top10 });
+    const within = target.reduce((sum, row) => sum + row.within, 0) / target.length;
+    results.push({ parameters, mae, within });
   }
   results.sort((a, b) => {
-    if (b.top10 !== a.top10) {
-      return b.top10 - a.top10;
+    if (b.within !== a.within) {
+      return b.within - a.within;
     }
     return a.mae - b.mae;
   });
@@ -194,7 +229,7 @@ function main() {
   console.log(`tuned parameters: ${JSON.stringify(best)}`);
   for (const entry of grid.slice(0, 4)) {
     console.log(
-      `  ${JSON.stringify(entry.parameters)} mae ${entry.mae.toFixed(4)} top10 ${entry.top10.toFixed(3)}`
+      `  ${JSON.stringify(entry.parameters)} mae ${entry.mae.toFixed(4)} within ${entry.within.toFixed(3)}`
     );
   }
 
@@ -220,7 +255,7 @@ function main() {
       .map(
         (row) =>
           `  n=${String(row.size).padStart(2)} mae ${row.mae.toFixed(4)} ` +
-          `top10 ${row.top10.toFixed(3)} rank1 ${row.rank1.toFixed(3)} ` +
+          `within ${row.within.toFixed(3)} support ${row.meanSupport.toFixed(2)} ` +
           `stability ${row.stability > 0 ? row.stability.toFixed(3) : '  n/a'} (${row.count} runs)`
       )
       .join('\n');
@@ -241,8 +276,8 @@ function main() {
     if (heldoutFinal.mae > THRESHOLDS.mae) {
       failures.push(`held-out mae ${heldoutFinal.mae.toFixed(4)} above ${THRESHOLDS.mae}`);
     }
-    if (heldoutFinal.top10 < THRESHOLDS.top10) {
-      failures.push(`held-out top10 ${heldoutFinal.top10.toFixed(3)} below ${THRESHOLDS.top10}`);
+    if (heldoutFinal.within < THRESHOLDS.within) {
+      failures.push(`held-out within ${heldoutFinal.within.toFixed(3)} below ${THRESHOLDS.within}`);
     }
   }
   if (minimum === null) {
