@@ -44,6 +44,7 @@
 
   var elements = {};
   var occupationByCode = new Map();
+  var dwaByElement = new Map();
   var gapMin = 0;
   var gapMax = 0;
   var gapBins = new Int32Array(100);
@@ -146,6 +147,9 @@
     for (i = 0; i < dataset.occupations.length; i += 1) {
       occupationByCode.set(dataset.occupations[i].c, i);
     }
+    for (i = 0; i < dataset.dwas.length; i += 1) {
+      dwaByElement.set(dataset.dwas[i].i, i);
+    }
     gapMin = Infinity;
     gapMax = -Infinity;
     for (i = 0; i < dataset.occupations.length; i += 1) {
@@ -228,6 +232,8 @@
       'filter-similarity',
       'filter-similarity-value',
       'export',
+      'share',
+      'share-status',
       'restart',
       'ranking',
       'ranking-count',
@@ -279,13 +285,9 @@
 
   function setLocale(locale) {
     i18n.set(locale);
-    try {
-      window.history.replaceState(null, '', '#' + locale);
-    } catch (error) {
-      /* file:// or a sandbox may refuse the history call. The language still applies. */
-    }
     applyStatic();
     refresh();
+    syncUrl();
   }
 
   function refresh() {
@@ -476,6 +478,7 @@
     state.selectedOccupations.push(occupationIndex);
     rebuildActivities();
     renderOccupationScreen();
+    syncUrl();
   }
 
   function removeOccupation(occupationIndex) {
@@ -486,6 +489,7 @@
     state.selectedOccupations.splice(at, 1);
     rebuildActivities();
     renderOccupationScreen();
+    syncUrl();
   }
 
   /* --- Occupation flow: ordered union of activities -------------------- */
@@ -499,6 +503,7 @@
     checkbox.addEventListener('change', function () {
       state.activityEnabled.set(dwaIndex, checkbox.checked);
       updateActivitiesDone();
+      syncUrl();
     });
     return checkbox;
   }
@@ -645,6 +650,7 @@
     state.shown = 0;
     renderRanking(true);
     setScreen('results');
+    syncUrl();
   }
 
   /* --- Activity list controls ----------------------------------------- */
@@ -715,6 +721,7 @@
     syncListOrder(list);
     renumberList(list);
     refreshMoveButtonsFor();
+    syncUrl();
     var rank = row.querySelector('input[data-rank]');
     if (rank) {
       rank.focus();
@@ -1213,6 +1220,7 @@
     elements.representatives.textContent = '';
     renderOccupationScreen();
     setScreen('occupations');
+    syncUrl();
   }
 
   function wire() {
@@ -1330,6 +1338,7 @@
       renderRanking(true);
     });
     elements.export.addEventListener('click', exportCsv);
+    elements.share.addEventListener('click', shareResult);
     elements.restart.addEventListener('click', restart);
     elements.more.addEventListener('click', function () {
       renderRanking(false);
@@ -1366,8 +1375,183 @@
     });
   }
 
+  /* --- Shareable state ------------------------------------------------ */
+
+  function toBase64Url(text) {
+    var bytes = new TextEncoder().encode(text);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function fromBase64Url(text) {
+    var padded = text.replace(/-/g, '+').replace(/_/g, '/');
+    while (padded.length % 4) {
+      padded += '=';
+    }
+    var binary = atob(padded);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  }
+
+  function statePayload() {
+    var occupations = state.selectedOccupations.map(function (occupation) {
+      return dataset.occupations[occupation].c;
+    });
+    var order = state.activityOrder.map(function (dwa) {
+      return dataset.dwas[dwa].i;
+    });
+    var disabled = [];
+    state.activityOrder.forEach(function (dwa) {
+      if (state.activityEnabled.get(dwa) === false) {
+        disabled.push(dataset.dwas[dwa].i);
+      }
+    });
+    return { v: 1, o: occupations, a: order, d: disabled, lang: i18n.get() };
+  }
+
+  function encodedState() {
+    if (state.selectedOccupations.length === 0) {
+      return '';
+    }
+    return toBase64Url(JSON.stringify(statePayload()));
+  }
+
+  function buildShareUrl() {
+    var encoded = encodedState();
+    var relative = window.location.pathname + (encoded ? '?s=' + encoded : '') + '#' + i18n.get();
+    try {
+      return new URL(relative, window.location.href).href;
+    } catch (error) {
+      return relative;
+    }
+  }
+
+  function syncUrl() {
+    try {
+      window.history.replaceState(null, '', buildShareUrl());
+    } catch (error) {
+      /* file:// or a sandbox may refuse the history call. The share button still builds the URL. */
+    }
+  }
+
+  function readStateFromUrl() {
+    var search = window.location.search || '';
+    if (search.length < 2) {
+      return null;
+    }
+    var raw = new URLSearchParams(search).get('s');
+    if (!raw) {
+      return null;
+    }
+    try {
+      var parsed = JSON.parse(fromBase64Url(raw));
+      return parsed && parsed.v === 1 ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function restoreState(shared) {
+    if (!shared || !shared.o || !shared.a) {
+      return;
+    }
+    var occupations = [];
+    shared.o.forEach(function (code) {
+      var occupation = occupationByCode.get(code);
+      if (occupation !== undefined && occupations.indexOf(occupation) < 0) {
+        occupations.push(occupation);
+      }
+    });
+    if (occupations.length === 0) {
+      return;
+    }
+    state.selectedOccupations = occupations;
+
+    var present = new Set();
+    occupations.forEach(function (occupation) {
+      dataset.occupations[occupation].dwa.forEach(function (dwa) {
+        present.add(dwa);
+      });
+    });
+    var order = [];
+    shared.a.forEach(function (element) {
+      var dwa = dwaByElement.get(element);
+      if (dwa !== undefined && present.has(dwa) && order.indexOf(dwa) < 0) {
+        order.push(dwa);
+      }
+    });
+    present.forEach(function (dwa) {
+      if (order.indexOf(dwa) < 0) {
+        order.push(dwa);
+      }
+    });
+    state.activityOrder = order;
+    state.activityEnabled = new Map();
+    order.forEach(function (dwa) {
+      state.activityEnabled.set(dwa, true);
+    });
+    if (shared.d) {
+      shared.d.forEach(function (element) {
+        var dwa = dwaByElement.get(element);
+        if (dwa !== undefined && state.activityEnabled.has(dwa)) {
+          state.activityEnabled.set(dwa, false);
+        }
+      });
+    }
+    renderOccupationScreen();
+    if (order.length === 0) {
+      rebuildActivities();
+      renderActivityScreen();
+      setScreen('activities');
+      syncUrl();
+      return;
+    }
+    showOccupationResults();
+  }
+
+  function shareResult() {
+    var url = buildShareUrl();
+    function copied() {
+      elements['share-status'].hidden = false;
+      elements['share-status'].textContent = t('results.shareCopied');
+      window.setTimeout(function () {
+        elements['share-status'].hidden = true;
+        elements['share-status'].textContent = '';
+      }, 3000);
+    }
+    function fallback() {
+      var input = document.createElement('input');
+      input.value = url;
+      input.setAttribute('readonly', '');
+      input.className = 'visually-hidden';
+      document.body.appendChild(input);
+      input.select();
+      try {
+        document.execCommand('copy');
+        copied();
+      } catch (error) {
+        window.prompt(t('results.sharePrompt'), url);
+      }
+      document.body.removeChild(input);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(copied, fallback);
+    } else {
+      fallback();
+    }
+  }
+
   function boot() {
-    i18n.set(i18n.fromHash() || i18n.detect());
+    var shared = readStateFromUrl();
+    var sharedLocale =
+      shared && shared.lang && i18n.SUPPORTED.indexOf(shared.lang) >= 0 ? shared.lang : null;
+    i18n.set(sharedLocale || i18n.fromHash() || i18n.detect());
     prepare();
     applyStatic();
     wire();
@@ -1375,6 +1559,9 @@
     setScreen('slides');
     elements['filter-exposure-value'].textContent = format(0);
     elements['filter-similarity-value'].textContent = percent(0);
+    if (shared) {
+      restoreState(shared);
+    }
   }
 
   boot();

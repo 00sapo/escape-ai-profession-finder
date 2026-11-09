@@ -28,6 +28,9 @@
       "results.filterSimilarity": "Somiglianza minima:",
       "results.export": "Esporta CSV",
       "results.restart": "Ricomincia",
+      "results.share": "Copia link",
+      "results.shareCopied": "Link copiato",
+      "results.sharePrompt": "Copia questo link",
       "results.ranking": "Classifica per somiglianza",
       "results.more": "Mostra altre professioni",
       "results.count": "{total} professioni corrispondono ai filtri. Mostrate: {shown}.",
@@ -141,6 +144,9 @@
       "results.filterSimilarity": "Minimum similarity:",
       "results.export": "Export CSV",
       "results.restart": "Start again",
+      "results.share": "Copy link",
+      "results.shareCopied": "Link copied",
+      "results.sharePrompt": "Copy this link",
       "results.ranking": "Ranking by similarity",
       "results.more": "Show more occupations",
       "results.count": "{total} occupations match the filters. Shown: {shown}.",
@@ -254,6 +260,9 @@
       "results.filterSimilarity": "Similitud mínima:",
       "results.export": "Exportar CSV",
       "results.restart": "Empezar de nuevo",
+      "results.share": "Copiar enlace",
+      "results.shareCopied": "Enlace copiado",
+      "results.sharePrompt": "Copia este enlace",
       "results.ranking": "Clasificación por similitud",
       "results.more": "Mostrar más ocupaciones",
       "results.count": "{total} ocupaciones coinciden con los filtros. Mostradas: {shown}.",
@@ -367,6 +376,9 @@
       "results.filterSimilarity": "Similarité minimale :",
       "results.export": "Exporter en CSV",
       "results.restart": "Recommencer",
+      "results.share": "Copier le lien",
+      "results.shareCopied": "Lien copié",
+      "results.sharePrompt": "Copiez ce lien",
       "results.ranking": "Classement par similarité",
       "results.more": "Afficher plus de métiers",
       "results.count": "{total} métiers correspondent aux filtres. Affichés : {shown}.",
@@ -480,6 +492,9 @@
       "results.filterSimilarity": "最小相似度：",
       "results.export": "导出 CSV",
       "results.restart": "重新开始",
+      "results.share": "复制链接",
+      "results.shareCopied": "链接已复制",
+      "results.sharePrompt": "复制此链接",
       "results.ranking": "按相似度排序",
       "results.more": "显示更多职业",
       "results.count": "{total} 个职业符合筛选条件。已显示：{shown}。",
@@ -593,6 +608,9 @@
       "results.filterSimilarity": "أدنى تشابه:",
       "results.export": "تصدير CSV",
       "results.restart": "ابدأ من جديد",
+      "results.share": "نسخ الرابط",
+      "results.shareCopied": "تم نسخ الرابط",
+      "results.sharePrompt": "انسخ هذا الرابط",
       "results.ranking": "الترتيب حسب التشابه",
       "results.more": "اعرض مهناً أخرى",
       "results.count": "{total} مهنة تطابق المرشحات. المعروض: {shown}.",
@@ -706,6 +724,9 @@
       "results.filterSimilarity": "न्यूनतम समानता:",
       "results.export": "CSV निर्यात करें",
       "results.restart": "फिर से शुरू करें",
+      "results.share": "लिंक कॉपी करें",
+      "results.shareCopied": "लिंक कॉपी हो गया",
+      "results.sharePrompt": "यह लिंक कॉपी करें",
       "results.ranking": "समानता के अनुसार क्रम",
       "results.more": "और व्यवसाय दिखाएँ",
       "results.count": "{total} व्यवसाय फ़िल्टर से मेल खाते हैं। दिखाए गए: {shown}।",
@@ -827,8 +848,8 @@
   }
 
   function fromHash() {
-    var match = /^#(it|en)$/.exec(root.location ? root.location.hash : '');
-    return match ? match[1] : null;
+    var hash = (root.location ? root.location.hash : '').replace(/^#/, '');
+    return SUPPORTED.indexOf(hash) >= 0 ? hash : null;
   }
 
   function get() {

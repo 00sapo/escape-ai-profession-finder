@@ -684,3 +684,32 @@ test('every language renders and holds the layout', async ({ page }) => {
   await page.selectOption('#locale', 'it');
   await expect(page.locator('#slide-title')).toHaveText(italianTitle);
 });
+
+test('the results URL restores the chosen occupations and activities', async ({ page }) => {
+  await reachActivities(page);
+  const first = page.locator('#activity-list li[data-dwa]').first();
+  const second = page.locator('#activity-list li[data-dwa]').nth(1);
+  const firstDwa = await first.getAttribute('data-dwa');
+  const secondDwa = await second.getAttribute('data-dwa');
+
+  await first.locator('input[data-enabled]').uncheck();
+  await second.locator('[data-move="up"]').click();
+  await page.locator('#activities-done').click();
+  await expect(page.locator('#screen-results')).toBeVisible();
+  const score = await page.locator('#score-value').textContent();
+  const url = page.url();
+  expect(url).toContain('?s=');
+
+  await page.goto(url);
+  await expect(page.locator('#screen-results')).toBeVisible();
+  await expect(page.locator('#score-value')).toHaveText(score);
+
+  await page.locator('#results-back').click();
+  await expect(page.locator('#screen-activities')).toBeVisible();
+  await expect(
+    page.locator(`#activity-list li[data-dwa="${firstDwa}"] input[data-enabled]`)
+  ).not.toBeChecked();
+  await expect(
+    page.locator(`#activity-list li[data-dwa="${secondDwa}"] input[data-rank]`)
+  ).toHaveValue('1');
+});

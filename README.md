@@ -9,6 +9,10 @@ resilience and high exposure. A high gap means high resilience.
 
 The site runs in the browser. No data leaves your device.
 
+The results URL stores the chosen occupations, the activity order, the enabled
+activities, and the language. Open the URL to restore the state and repeat the
+estimate. The Copy link button copies the URL.
+
 ## Run the site
 
 Open `web/index.html` in a browser. The site works from the file system. It
