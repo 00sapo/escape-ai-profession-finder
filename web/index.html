@@ -33,18 +33,13 @@
 
 <main id="main" class="wrap">
 
-  <section id="screen-intro" class="screen" aria-labelledby="intro-title">
-    <h1 id="intro-title" data-i18n="intro.title">Quanto è esposto il tuo lavoro all'AI?</h1>
-    <p class="lead" data-i18n="intro.lead">
-      Cerca una o più professioni, scegli dalle loro attività quelle che svolgi e
-      ordinale per priorità: il risultato è il gap OCSE del tuo profilo.
-    </p>
-    <ul class="plain-list">
-      <li data-i18n="intro.point1">Il punteggio è calcolato nel browser dai dati O*NET e OCSE inclusi nella pagina.</li>
-      <li data-i18n="intro.point2">Nessun dato lascia il tuo dispositivo e nessuna richiesta di rete parte dalla pagina.</li>
-      <li data-i18n="intro.point3">L'ordine delle attività è la priorità: disattiva quelle che non svolgi e disponi le altre dall'alto in basso.</li>
-    </ul>
-    <section class="sources" aria-labelledby="sources-title">
+
+  <section id="screen-slides" class="screen" aria-labelledby="slide-title">
+    <div id="slide-panel" class="card slide-panel">
+      <div id="slide-visual" class="slide-visual" aria-hidden="true"></div>
+      <h2 id="slide-title"></h2>
+      <p id="slide-text"></p>
+    <section id="slide-sources" class="sources" hidden aria-labelledby="sources-title">
       <h2 id="sources-title" data-i18n="sources.title">Fonti</h2>
       <dl class="sources-list">
         <div class="source-row">
@@ -74,18 +69,6 @@
       <p data-i18n="sources.independence">Entrambe le fonti provengono da istituzioni pubbliche, non da aziende che vendono IA. Il punteggio non si basa quindi su benchmark, valutazioni o materiale promozionale pubblicati dai fornitori di IA.</p>
       <p data-i18n="sources.caveat">Il gap si può leggere anche come una misura di resilienza della professione alle tecnologie di IA attuali. Non tiene conto però degli effetti indiretti del cambiamento che l&#x27;IA introduce. Per esempio, impianti elettrici più ottimizzati riducono i guasti e quindi la domanda di elettricisti.</p>
     </section>
-
-    <p class="legend" id="direction-legend" data-i18n="intro.legend">
-      Un valore più basso dell'AI Capability Gap OCSE indica maggiore esposizione.
-    </p>
-    <button id="start-occupations" class="button button-primary" type="button" data-i18n="occupations.title">Scegli le professioni</button>
-  </section>
-
-  <section id="screen-slides" class="screen" hidden aria-labelledby="slide-title">
-    <div id="slide-panel" class="card slide-panel">
-      <div id="slide-visual" class="slide-visual" aria-hidden="true"></div>
-      <h2 id="slide-title"></h2>
-      <p id="slide-text"></p>
     </div>
     <p id="slide-progress" class="counter" role="status" aria-live="polite"></p>
     <div class="actions">

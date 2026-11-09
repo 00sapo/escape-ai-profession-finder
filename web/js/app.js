@@ -29,7 +29,7 @@
     performed: new Set(),
     denied: new Set(),
     fit: null,
-    screen: 'intro',
+    screen: 'slides',
     shown: 0,
     origin: 'tree',
     infoDwa: -1,
@@ -100,10 +100,12 @@
   }
 
   var SLIDE_VISUALS = [
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="10" width="70" height="12" rx="4" fill="#e3edf9" stroke="#0a4f9c"/><circle cx="14" cy="16" r="3" fill="#0a4f9c"/><rect x="8" y="30" width="46" height="8" rx="4" fill="#0a4f9c"/><rect x="8" y="44" width="34" height="8" rx="4" fill="#8aa9c9"/><path d="M88 18 l8 8 -8 8" stroke="#12161c" fill="none" stroke-width="2"/><rect x="86" y="38" width="24" height="16" rx="4" fill="#e3edf9" stroke="#0a4f9c"/></svg>',
     '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="4" y="10" width="40" height="18" rx="4" fill="#0a4f9c"/><rect x="40" y="26" width="40" height="18" rx="4" fill="#4f7fb5"/><rect x="76" y="10" width="40" height="18" rx="4" fill="#0a4f9c"/><path d="M24 28 L60 44 L96 28" stroke="#4f5a68" fill="none" stroke-width="2"/><rect x="30" y="46" width="60" height="12" rx="4" fill="#e3edf9" stroke="#0a4f9c"/></svg>',
     '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="10" y="8" width="100" height="10" rx="4" fill="#0a4f9c"/><rect x="10" y="24" width="82" height="10" rx="4" fill="#8aa9c9"/><rect x="10" y="40" width="64" height="10" rx="4" fill="#c8d0da"/><path d="M96 8 l0 -6 m0 0 l-4 4 m4 -4 l4 4" stroke="#12161c" fill="none" stroke-width="2"/></svg>',
     '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="8" width="104" height="48" rx="5" fill="#ffffff" stroke="#4f5a68"/><path d="M20 42 L38 30 L54 36 L72 20 L92 26 L104 18" stroke="#0a4f9c" fill="none" stroke-width="2"/><circle cx="72" cy="20" r="3" fill="#0a4f9c"/></svg>',
-    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="26" width="104" height="12" rx="6" fill="url(#g)"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#b3261e"/><stop offset="1" stop-color="#1a6b3c"/></linearGradient></defs><rect x="8" y="42" width="6" height="6" fill="#12161c"/><rect x="106" y="42" width="6" height="6" fill="#12161c"/></svg>'
+    '<svg viewBox="0 0 120 64" width="120" height="64"><rect x="8" y="26" width="104" height="12" rx="6" fill="url(#g)"/><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#b3261e"/><stop offset="1" stop-color="#1a6b3c"/></linearGradient></defs><rect x="8" y="42" width="6" height="6" fill="#12161c"/><rect x="106" y="42" width="6" height="6" fill="#12161c"/></svg>',
+    '<svg viewBox="0 0 120 64" width="120" height="64"><circle cx="24" cy="20" r="8" fill="#0a4f9c"/><circle cx="56" cy="14" r="8" fill="#8aa9c9"/><circle cx="88" cy="22" r="8" fill="#0a4f9c"/><path d="M30 24 L50 16 M62 16 L82 20" stroke="#4f5a68" stroke-width="2"/><path d="M60 34 l0 12 M60 46 l-18 10 M60 46 l18 10" stroke="#12161c" stroke-width="2"/><rect x="38" y="52" width="44" height="8" rx="4" fill="#e3edf9" stroke="#0a4f9c"/></svg>'
   ];
 
   function renderSlide() {
@@ -114,20 +116,21 @@
       max: i18n.number(gapMax, 2)
     });
     elements['slide-visual'].innerHTML = SLIDE_VISUALS[index];
-    var progress = t('slides.progress', { current: i18n.number(index + 1, 0), total: i18n.number(4, 0) });
+    elements['slide-sources'].hidden = index !== SLIDE_VISUALS.length - 1;
+    var progress = t('slides.progress', { current: i18n.number(index + 1, 0), total: i18n.number(SLIDE_VISUALS.length, 0) });
     elements['slide-progress'].textContent = '';
     elements['slide-progress'].appendChild(document.createTextNode(progress + ' '));
-    for (var dot = 0; dot < 4; dot += 1) {
+    for (var dot = 0; dot < SLIDE_VISUALS.length; dot += 1) {
       var marker = element('span', 'slide-dot' + (dot === index ? ' is-current' : ''), '•');
       marker.setAttribute('aria-hidden', 'true');
       elements['slide-progress'].appendChild(marker);
     }
     elements['slide-back'].disabled = index === 0;
-    elements['slide-next'].textContent = index === 3 ? t('slides.finish') : t('slides.next');
+    elements['slide-next'].textContent = index === SLIDE_VISUALS.length - 1 ? t('slides.finish') : t('slides.next');
   }
 
   function changeSlide(step) {
-    state.slide = Math.max(0, Math.min(3, state.slide + step));
+    state.slide = Math.max(0, Math.min(SLIDE_VISUALS.length - 1, state.slide + step));
     renderSlide();
   }
 
@@ -172,20 +175,19 @@
 
 
     [
-      'screen-intro',
       'screen-occupations',
       'screen-slides',
       'slide-panel',
       'slide-title',
       'slide-text',
       'slide-visual',
+      'slide-sources',
       'slide-progress',
       'slide-back',
       'slide-next',
       'slide-skip',
       'screen-activities',
       'screen-results',
-      'start-occupations',
       'occupation-search',
       'occupation-count',
       'occupation-results',
@@ -285,7 +287,9 @@
   }
 
   function refresh() {
-    if (state.screen === 'occupations') {
+    if (state.screen === 'slides') {
+      renderSlide();
+    } else if (state.screen === 'occupations') {
       renderOccupationScreen();
     } else if (state.screen === 'activities') {
       renderActivityScreen();
@@ -298,7 +302,7 @@
 
   function setScreen(name) {
     state.screen = name;
-    ['intro', 'slides', 'occupations', 'activities', 'results'].forEach(function (screen) {
+    ['slides', 'occupations', 'activities', 'results'].forEach(function (screen) {
       var node = elements['screen-' + screen];
       if (node) {
         node.hidden = screen !== name;
@@ -1189,16 +1193,11 @@
   }
 
   function wire() {
-    elements['start-occupations'].addEventListener('click', function () {
-      state.slide = 0;
-      renderSlide();
-      setScreen('slides');
-    });
     elements['slide-back'].addEventListener('click', function () {
       changeSlide(-1);
     });
     elements['slide-next'].addEventListener('click', function () {
-      if (state.slide === 3) {
+      if (state.slide === SLIDE_VISUALS.length - 1) {
         openOccupations();
       } else {
         changeSlide(1);
@@ -1349,6 +1348,8 @@
     prepare();
     applyStatic();
     wire();
+    renderSlide();
+    setScreen('slides');
     elements['filter-exposure-value'].textContent = format(0);
     elements['filter-similarity-value'].textContent = percent(0);
   }

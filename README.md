@@ -1,42 +1,26 @@
 # Escape AI - Profession Finder
 
-Escape AI - Profession Finder starts from one or more O*NET occupations,
-turns their combined activities into an ordered personal profile, and estimates
-the OECD 2026 AI Capability Gap of that profile.
+## What it does
 
-## What it shows
+The site shows how AI affects an occupation. You search for one or more
+occupations. You select the activities that you perform. You set their order.
+The site shows the OECD AI Capability Gap of that profile. A low gap means low
+resilience and high exposure. A high gap means high resilience.
 
-- A four slide introduction: several occupations, activities and order, the
-  estimate, and the scale. The last slide opens the occupation search.
-- A fuzzy occupation search over 879 O*NET titles, with a score per row, a
-  twenty row cap and the total count.
-- A selected occupation list with a remove button for each choice.
-- One ordered activity list built from the union of the chosen occupations.
-  Checkboxes turn activities off, and up and down buttons, drag and drop or a
-  typed rank reorder the rest. The order is the priority.
-- An info button on every activity row, with the GWA and IWA names, the
-  occupations that contain the activity and their OECD gap values.
-- The estimated OECD AI Capability Gap as the headline number, with the
-  direction legend and the uncertainty.
-- A histogram of all 879 occupations over 100 equal gap bins, with the current
-  bin marked, the axis gap values, the least and most resilient occupations and
-  the direction labels.
-- The representative occupations that make up the profile, with their weights.
-- A full ranking of 879 occupations by similarity, with a red to green gap band
-  and filters on minimum gap (resilience) and minimum similarity.
-- A CSV export of the filtered ranking.
+The site runs in the browser. No data leaves your device.
 
-The page states that a lower AI Capability Gap value means less resilience,
-so more exposure. The OECD measures the distance between what an occupation
-requires and what AI can do today. A small distance means high exposure.
+## Run the site
 
-## Run the page
+Open `web/index.html` in a browser. The site works from the file system. It
+sends no network request.
 
-Open `web/index.html` in a browser. The page works from the file system, with
-no server and no network request.
+To serve it over HTTP, run:
 
-To serve it over HTTP instead, run `node tests/server.js` and open
-`http://127.0.0.1:4173/index.html`.
+```sh
+node tests/server.js
+```
+
+Then open `http://127.0.0.1:4173/index.html`.
 
 ## Rebuild the data
 
@@ -44,274 +28,58 @@ To serve it over HTTP instead, run `node tests/server.js` and open
 python3 pipeline/build_dataset.py
 ```
 
-The page ships the dataset only. There is no model file and no model build
-step.
+The script writes these files:
 
-The script downloads two sources into `data/raw` and writes three files.
-It needs only the Python standard library.
+- `data/dist/dataset.json.gz`
+- `data/dist/match_report.json`
+- `web/data/dataset.js`
 
-| Output | Purpose |
-|--------|---------|
-| `data/dist/dataset.json.gz` | Compressed export of the whole bundle |
-| `data/dist/match_report.json` | Join diagnostics for the OECD scores |
-| `web/data/dataset.js` | The same bundle as a classic script for the page |
-
-Check the existing outputs without a rebuild:
+Check the files without a rebuild:
 
 ```sh
 python3 pipeline/build_dataset.py --check
 ```
 
-## Verify everything
+The machine translations live in `web/data/translations`. Rebuild them with:
+
+```sh
+python3 tools/translate_data.py
+```
+
+The script uses a cache in `data/cache`. It needs network access only when the
+cache misses a string.
+
+## Verify
 
 ```sh
 npm install
 npm run verify
 ```
 
-The command runs four checks in order.
+The command runs the data check, the tuning check, the i18n check, the
+translation check, the validation harness, the priority harness, and the
+Playwright tests.
 
-1. `npm run check:data` validates the dataset bundle.
-2. `npm run check:tuning` compares the constants in the page with the validation report.
-3. `npm run validate` runs the validation harness.
-4. `npm run test:ui` runs the Playwright checks at four viewport sizes.
+## Sources
 
-## How the estimate works
+- O*NET 31.0: https://www.onetcenter.org/
+- OECD AI Capability Gap Index, 2026:
+  https://aicapabilityindicators.oecd.org/
+- Paper: https://doi.org/10.1787/f3da0f0a-en
 
-The user declares activities. Every activity the user does not declare counts
-as missing data, not as an absent activity.
+## Model
 
-The occupation flow builds one ordered activity list from the chosen occupations. The order is the priority.
+The model represents the declared activities as a weighted blend of O*NET
+occupations. The weights are not negative and their sum is one. Undeclared
+activities count as missing data, and the result is the weighted mean of the
+OECD gaps.
 
-The model treats the declared profile as a convex combination of occupations.
-The weights are non-negative and sum to one. The solver uses exponentiated
-gradient ascent on the simplex, then keeps the smallest support that carries
-most of the mass. The code lives in `web/js/model.js` and runs unchanged in the
-page and in the validation harness.
+## Privacy
 
-Frequency weights the evidence. Every declared activity enters the likelihood
-with its O*NET frequency as a multiplicative strength, so a daily task counts
-more than a task done once a year. The weighted entry point is
-`fitBlendWeighted`; `fitBlend` keeps its original signature and delegates to
-it, and both accept the optional `frequency` map. Missing or invalid
-frequencies fall back to a weight of one, which reproduces the unweighted
-model.
+The page loads local files only. It stores nothing and sends nothing. The CSV
+export is a local file.
 
-The frequency rows also carry the user's priority order. Position is the
-priority, not a number: the top activity is the most important one. The
-up and down buttons or a typed rank as well as dragging reorder the list. The
-model receives the activities in that order. The order only breaks ties, and on
-an equal score the occupation matching more of the higher-priority activities
-ranks first.
+## Language
 
-The similarity of an occupation is the smoothed likelihood of the declared
-evidence under that single occupation. The headline is the estimated OECD AI
-Capability Gap of the blend. The uncertainty is the standard
-deviation of 24 bootstrap refits over the declared activities, with each
-resampled activity carrying its frequency weight.
-
-The suggestion loop stops when at least ten activities are declared and the
-blend moves less than 0.059 in total variation for two consecutive answers.
-The validation harness derives both numbers.
-
-
-## Fuzzy occupation search
-
-The only entry is the occupation search. It matches the 879 O*NET titles with a
-small, dependency-free function in `web/js/fuzzy.js`: text is lowercased and
-diacritics are stripped, then each title is scored. An exact substring beats a
-prefix match, which beats all query tokens being present, which beats a
-subsequence match, which beats a token edit distance of at most 2. Ties go to
-the title, then to the catalogue index. The list is capped at 20 rows with the
-total count, the score is shown per row, and an empty query shows the first 20
-titles alphabetically. Nothing is loaded asynchronously and no model ships with
-the page.
-
-## The exposure scale
-
-The page ranks occupations by the reversed normalised gap index, from 0 to 1.
-A higher value means more exposure.
-
-The raw total gap index runs the other way, so a lower value means more
-exposure. The two scales are linear in each other:
-
-```text
-reversed = 1 - total / 22.94
-```
-
-A mean absolute error of 0.05 on the reversed scale equals 1.15 on the raw
-total gap index.
-
-## Data
-
-| Source | Content | Used |
-|--------|---------|------|
-| O*NET 31.0 text database | 1016 occupations, 2084 detailed work activities, 17712 occupation-activity links | Activities and occupation descriptions |
-| OECD AI Capability Gap Index, 2026 | 879 occupations with the total gap index, the reversed index and nine domain gaps | Exposure scores |
-
-All 879 OECD occupations match an O*NET-SOC code and have activities. The 137
-O*NET occupations without an OECD score are reported and excluded, because the
-page cannot rank them by exposure.
-
-The median occupation has 20 activities. The page sets the first minimum to
-`ceil(20 / 2)`, which is 10.
-
-### Activity importance and priority
-
-O*NET importance comes from joining `Tasks to DWAs.txt` with the `IM` rows of
-`Task Ratings.txt`. A task's importance is the mean of its IM ratings; a task
-with no rating takes the global mean rating. Per occupation and activity the
-importance is the maximum over the tasks mapped to that activity. An activity
-with no mapped task takes the occupation mean, then the global mean. The bundle
-ships these as `imp`, aligned with each occupation's `dwa`, plus
-`dwaImportance` (per-activity average across occupations) and
-`priorityImportance`.
-
-`priorityImportance` has 21 values: the mean O*NET importance at each relative
-rank of the user's order, pooled over occupations, forced non-increasing, then
-stretched linearly to span the full 1 to 5 importance range. The stretch keeps
-the map monotone and makes an order change actually move the blend. A declared
-activity at relative position q takes the interpolated table value, and that
-value becomes its evidence weight, replacing the unit weight when no frequency
-is supplied. A supplied frequency still takes precedence. When the performed set
-equals an occupation's full activity set, the blend collapses onto that
-occupation, so reversing an unambiguous single-occupation order changes nothing.
-
-`validation/priority_check.js` measures three cases over the 879 occupations:
-
-| Case | Result |
-|------|--------|
-| O*NET-following order vs true importance | median Spearman 0.998, median Kendall tau 0.969, mean absolute difference 0.208 |
-| Random-order control | median Spearman -0.008, median Kendall tau -0.004, mean absolute difference 0.274 |
-| Single occupation, full set, order reversed | median gap delta 0, median top-weight delta 0 (exact-set collapse) |
-| Two occupations merged, order reversed | median gap delta 0.066, max 0.939, median top-weight delta 0.073, top occupation changes in 21.4 percent of pairs |
-
-The harness fails when the following-order median Spearman drops below 0.6, is
-less than 0.2 above the control, a single occupation's full-set order moves the
-gap, or merged evidence barely reacts (median gap delta below 0.02 and top
-occupation changes below 10 percent). All thresholds live in that file.
-
-### Capability domains
-
-The OECD workbook's `Data` sheet carries nine per-domain gaps (`Lang_Gap`,
-`Soc_Gap`, `ProbSolv_Gap`, `Creativity_Gap`, `Metacognition_Gap`, `KLM_Gap`,
-`Vision_Gap`, `Manip_Gap`, `Robot_Gap`) and the matching demands (`*_Dmd`). The
-bundle exports both per occupation as compact arrays in that fixed order, plus
-top-level `domains` and `aiCapability` arrays.
-
-The current AI level per domain is derived as the maximum over occupations of
-demand minus gap, clipped to the 1 to 5 range. It reproduces Table 6.1 of the
-paper exactly: language 3, social interaction 2, problem solving 2, creativity
-3, metacognition 2, knowledge/learning/memory 3, vision 3, manipulation 2,
-robotic intelligence 2. The per-domain gap is the demand minus that level,
-floored at zero, so a lower gap means more exposure in the domain. Clicking a
-ranking card opens the nine-domain breakdown with each level, gap and bar.
-
-### Activity details
-
-`data/raw/db_31_0_text/Content Model Reference.txt` has an `Element ID`,
-`Element Name` and `Description` column, and it does list the 2087 DWA element
-ids (`4.A.x.y.z`). Every DWA row in O*NET 31.0 has `n/a` in the `Description`
-column, so O*NET publishes no longer description for a detailed work activity.
-The bundle therefore ships no `desc` field, and the activity details panel
-shows the GWA name, the IWA name, the activity name, and the sentence that
-O*NET gives no longer description. Below it the panel lists up to 20
-occupations that contain the activity, with their OECD gap value, most exposed
-first and ties broken by title, followed by the total count. The panel never
-invents text.
-
-## Validation
-
-The harness splits the 879 occupations by a stable hash of the code. It tunes
-the blend on 547 occupations and reports the final numbers on 332 held-out
-occupations. It samples activities from each known occupation and compares the
-estimate with the true score.
-
-Held-out results, no noise:
-
-| Activities | Mean absolute error | True occupation in top 10 |
-|-----------:|--------------------:|--------------------------:|
-| 4 | 0.0060 | 0.985 |
-| 10 | 0.0003 | 0.997 |
-| 20 | 0.0006 | 0.994 |
-
-Held-out results with 15 percent foreign activities:
-
-| Activities | Mean absolute error | True occupation in top 10 |
-|-----------:|--------------------:|--------------------------:|
-| 10 | 0.0104 | 0.994 |
-| 20 | 0.0041 | 0.994 |
-
-The thresholds are a mean absolute error at or below 0.05 and a top-10 rate at
-or above 0.70. The harness writes `data/dist/validation_report.json` and exits
-non-zero when a threshold is missed.
-
-## Languages
-
-The interface is in Italian, English, Spanish, French, Chinese, Arabic and
-Hindi. A select in the top bar changes the language. The page reads the browser
-language on the first load and keeps the choice in the URL hash, so a reload
-keeps it. The page stores nothing else. Arabic switches the page direction to
-right to left.
-
-Occupation titles and activity names are machine translated at build time for
-Italian, Spanish, French, Chinese, Arabic and Hindi. Italian and Spanish were
-translated with the free MyMemory endpoint. MyMemory then hit its daily quota,
-so French, Chinese, Arabic and Hindi were completed with the
-`dict-chrome-ex` Google endpoint. The manifest records the endpoint per locale,
-and every string is cached under `data/cache/translations`. The English O*NET
-text is the reference: every missing translation falls back to it, and the
-interface shows the English original as a secondary line where a translation is
-present.
-
-The translation tables live in `web/data/translations/<locale>.json`, with
-provenance and coverage in `web/data/translations/manifest.json`. They are
-merged into the bundle as optional `tr` fields by `pipeline/build_dataset.py`.
-`npm run check:translations` fails on empty values, a locale missing from the
-manifest, or more than 20 percent of a locale's strings being identical to the
-English source, and prints coverage per locale.
-
-The build step is:
-
-```sh
-python3 tools/translate_data.py
-python3 pipeline/build_dataset.py --offline
-```
-
-To add a language, add one table to `web/js/i18n.js`, one entry to the
-`SUPPORTED` list, and one option to the select in `web/index.html`. The layout
-does not change.
-
-## Privacy and offline use
-
-- The page loads local scripts only, with the data inside one of them.
-- The questionnaire makes no network request.
-- The page stores nothing and sends nothing.
-- The CSV export is created in the browser from a local blob.
-
-The Playwright suite opens the page from `file://` and fails when any HTTP
-request appears.
-
-## Limits
-
-- The score describes potential exposure. It does not predict job loss.
-- The activity names are the original O*NET text in English.
-- The blending model is the first version. A better model is a later task.
-- The page covers the United States O*NET classification only.
-
-## Layout
-
-```text
-pipeline/build_dataset.py   offline data build, standard library only
-pipeline/xlsx.py            minimal xlsx reader
-web/index.html              page markup
-web/css/style.css           mobile-first styles
-web/js/model.js             blending, similarity, uncertainty, priority
-web/js/fuzzy.js             fuzzy occupation search
-web/js/i18n.js              interface translations and number formats
-web/js/app.js               questionnaire, results, CSV export
-web/data/dataset.js         generated payload
-validation/run_validation.js  tuning and held-out harness
-validation/check_tuning.js    constant drift guard
-tests/ui.spec.js            Playwright checks
-```
+This document aims to follow ASD-STE100. No tool guarantees STE compliance.
+The official dictionary is free at https://www.asd-ste100.org/.

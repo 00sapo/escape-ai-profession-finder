@@ -1,18 +1,21 @@
 import { expect } from '@playwright/test';
 
-/* After the intro, the app opens four onboarding slides. Most flow tests only
- * need the occupations screen, so they take the skip shortcut. The dedicated
- * slides test walks the four slides instead. */
-export async function enterOccupations(page) {
-  await page.locator('#start-occupations').click();
+/* The page opens on the onboarding slides. Most flow tests only need the
+ * occupations screen, so they take the skip shortcut. The dedicated slides
+ * test walks the six slides instead. */
+export async function skipSlides(page) {
   await expect(page.locator('#screen-slides')).toBeVisible();
   await page.locator('#slide-skip').click();
   await expect(page.locator('#screen-occupations')).toBeVisible();
 }
 
+export async function enterOccupations(page) {
+  await skipSlides(page);
+}
+
 export async function startOccupations(page) {
   await page.goto('/index.html');
-  await enterOccupations(page);
+  await skipSlides(page);
 }
 
 export async function selectOccupation(page, query = 'chief') {

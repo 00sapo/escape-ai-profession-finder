@@ -512,7 +512,7 @@ test('the page runs from disk with no network request', async ({ page }, testInf
   expect(requests).toEqual([]);
 });
 
-test('the intro names and links both sources', async ({ page }) => {
+test('the last slide names and links both sources', async ({ page }) => {
   const external = [];
   page.on('request', (request) => {
     const url = request.url();
@@ -522,38 +522,18 @@ test('the intro names and links both sources', async ({ page }) => {
   });
 
   await page.goto('/index.html');
-  await expect(page.locator('#screen-intro')).toBeVisible();
+  await expect(page.locator('#screen-slides')).toBeVisible();
+  for (let step = 0; step < 10 && !(await page.locator('.sources').isVisible()); step += 1) {
+    await page.locator('#slide-next').click();
+  }
+  await expect(page.locator('.sources')).toBeVisible();
 
-  const onet = page.locator('#screen-intro a[href*="onetcenter.org"]');
-  const oecd = page.locator('#screen-intro a[href*="aicapabilityindicators.oecd.org"]');
-  const doi = page.locator('#screen-intro a[href*="doi.org/10.1787/f3da0f0a-en"]');
+  const onet = page.locator('.sources a[href*="onetcenter.org"]');
+  const oecd = page.locator('.sources a[href*="aicapabilityindicators.oecd.org"]');
+  const doi = page.locator('.sources a[href*="doi.org/10.1787/f3da0f0a-en"]');
   await expect(onet).toHaveCount(1);
   await expect(oecd).toHaveCount(1);
   await expect(doi).toHaveCount(1);
-
-  const container = await page.evaluate(() => {
-    const needles = [
-      'onetcenter.org',
-      'aicapabilityindicators.oecd.org',
-      'doi.org/10.1787/f3da0f0a-en'
-    ];
-    const intro = document.querySelector('#screen-intro');
-    const links = needles.map((needle) =>
-      Array.from(intro.querySelectorAll('a[href]')).find((link) => link.href.includes(needle))
-    );
-    if (links.some((link) => !link)) {
-      return null;
-    }
-    let node = links[0];
-    while (node && !links.every((link) => node.contains(link))) {
-      node = node.parentElement;
-    }
-    if (!node || node === intro || node === document.body || node === document.documentElement) {
-      return null;
-    }
-    return { tag: node.tagName.toLowerCase(), id: node.id || null, className: node.className || null };
-  });
-  expect(container, 'a dedicated sources container should wrap the three links').not.toBeNull();
 
   for (const link of [onet, oecd, doi]) {
     await expect(link).toBeVisible();
@@ -577,14 +557,14 @@ test('the onboarding slides walk forward and back', async ({ page }) => {
     });
 
   await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
   await expect(page.locator('#screen-slides')).toBeVisible();
   await expect(page.locator('#slide-back')).toBeDisabled();
 
   const first = await title();
   expect(first).not.toBe('');
   const firstProgress = await progress();
-  expect(firstProgress).toMatch(/\d/);
+  expect(firstProgress).toContain('1');
+  expect(firstProgress).toContain('6');
 
   await page.locator('#slide-next').click();
   await expect.poll(title).not.toBe(first);
@@ -592,6 +572,7 @@ test('the onboarding slides walk forward and back', async ({ page }) => {
   await expect(page.locator('#slide-back')).toBeEnabled();
   const secondProgress = await progress();
   expect(secondProgress).not.toBe(firstProgress);
+  expect(secondProgress).toContain('6');
 
   await page.locator('#slide-back').click();
   await expect.poll(title).toBe(first);
@@ -602,19 +583,29 @@ test('the onboarding slides walk forward and back', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect.poll(title).toBe(first);
 
-  for (let step = 0; step < 10; step += 1) {
+  let slides = 0;
+  for (let step = 0; step < 12; step += 1) {
     if (await page.locator('#screen-occupations').isVisible()) {
       break;
     }
+    slides += 1;
     await expect(page.locator('#screen-slides')).toBeVisible();
     await assertLayoutIsSound(page);
     expect(await axeSerious(page)).toEqual([]);
+    if (slides === 6) {
+      await expect(page.locator('.sources')).toBeVisible();
+      await expect(page.locator('.sources a[href*="onetcenter.org"]')).toHaveCount(1);
+      await expect(page.locator('.sources a[href*="aicapabilityindicators.oecd.org"]')).toHaveCount(1);
+      await expect(page.locator('.sources a[href*="doi.org/10.1787/f3da0f0a-en"]')).toHaveCount(1);
+      await expect(page.locator('#slide-text')).not.toBeEmpty();
+      await expect(page.locator('#slide-text')).toContainText(/modell/i);
+    }
     await page.locator('#slide-next').click();
   }
+  expect(slides).toBe(6);
   await expect(page.locator('#screen-occupations')).toBeVisible();
 
   await page.goto('/index.html');
-  await page.locator('#start-occupations').click();
   await expect(page.locator('#screen-slides')).toBeVisible();
   await page.locator('#slide-next').click();
   await page.locator('#slide-skip').click();
@@ -631,7 +622,6 @@ test('switches language without losing the flow', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page).toHaveTitle('Escape AI - Profession Finder');
   await expect(page.locator('.brand')).toHaveText('Escape AI - Profession Finder');
-  await expect(page.locator('#start-occupations')).toHaveText('Choose occupations');
   await assertLayoutIsSound(page);
   expect(await axeSerious(page)).toEqual([]);
 
@@ -654,12 +644,9 @@ test('switches language without losing the flow', async ({ page }) => {
 
 test('no screen renders a raw translation key', async ({ page }) => {
   await page.goto('/index.html');
-  await expect(page.locator('#screen-intro')).toBeVisible();
-  await assertNoRawTranslationKeys(page);
-
-  await page.locator('#start-occupations').click();
   await expect(page.locator('#screen-slides')).toBeVisible();
   await assertNoRawTranslationKeys(page);
+
   await page.locator('#slide-skip').click();
   await expect(page.locator('#screen-occupations')).toBeVisible();
   await assertNoRawTranslationKeys(page);
@@ -681,6 +668,8 @@ test('no screen renders a raw translation key', async ({ page }) => {
 
 test('every language renders and holds the layout', async ({ page }) => {
   await page.goto('/index.html');
+  const italianTitle = (await page.locator('#slide-title').textContent()).trim();
+  expect(italianTitle).not.toBe('');
   for (const locale of ['it', 'en', 'es', 'fr', 'zh', 'ar', 'hi']) {
     await page.selectOption('#locale', locale);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
@@ -691,7 +680,7 @@ test('every language renders and holds the layout', async ({ page }) => {
     expect(await axeSerious(page), locale).toEqual([]);
   }
   await page.selectOption('#locale', 'ar');
-  await expect(page.locator('#intro-title')).toContainText('الاصطناعي');
+  await expect(page.locator('#slide-title')).not.toBeEmpty();
   await page.selectOption('#locale', 'it');
-  await expect(page.locator('#intro-title')).toContainText('Quanto');
+  await expect(page.locator('#slide-title')).toHaveText(italianTitle);
 });
