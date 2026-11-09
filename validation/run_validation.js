@@ -20,7 +20,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 const DATASET = path.join(ROOT, 'data', 'dist', 'dataset.json.gz');
 const MODEL = path.join(ROOT, 'web', 'js', 'model.js');
-const REPORT = path.join(ROOT, 'data', 'dist', 'validation_report.json');
+const IGNORE_DENIED = process.argv.includes('--ignore-denied');
+const REPORT = path.join(
+  ROOT,
+  'data',
+  'dist',
+  IGNORE_DENIED ? 'validation_report_ignore_denied.json' : 'validation_report.json'
+);
 
 const THRESHOLDS = { mae: 0.05, within: 0.65, tolerance: 0.05 };
 const SAMPLE_SIZES = [4, 5, 6, 8, 10, 12, 15, 20, 25];
@@ -122,7 +128,11 @@ function evaluate(index, model, occupations, options) {
       const denied = sampleDenied(index, occupation, performed, deniedCount, random);
       const fit = model.fitBlend(
         index,
-        { performed, denied, exclude: [occupation] },
+        {
+          performed,
+          denied: options.ignoreDenied ? new Int32Array(0) : denied,
+          exclude: [occupation]
+        },
         options.parameters
       );
       const estimate = fit.exposure;
@@ -186,10 +196,10 @@ function stabilityThreshold(table, floor) {
   return Math.round(values[Math.min(index, values.length - 1)] * 1000) / 1000;
 }
 
-function tune(index, model, tuning, seed) {
+function tune(index, model, tuning, seed, ignoreDenied) {
   const results = [];
   for (const parameters of GRID) {
-    const rows = evaluate(index, model, tuning, { seed, noise: 0, parameters });
+    const rows = evaluate(index, model, tuning, { seed, noise: 0, parameters, ignoreDenied });
     const table = summarize(rows);
     const target = table.filter((row) => row.size === 15 || row.size === 20);
     const mae = target.reduce((sum, row) => sum + row.mae, 0) / target.length;
@@ -223,8 +233,9 @@ function main() {
 
   console.log(`occupations ${index.nOcc}, activities ${index.nDwa}`);
   console.log(`split: tuning ${tuning.length}, held out ${heldout.length}`);
+  console.log(`mode: ${IGNORE_DENIED ? 'ignore denied activities' : 'use denied activities'}`);
 
-  const grid = tune(index, model, tuning, 1234);
+  const grid = tune(index, model, tuning, 1234, IGNORE_DENIED);
   const best = grid[0].parameters;
   console.log(`tuned parameters: ${JSON.stringify(best)}`);
   for (const entry of grid.slice(0, 4)) {
@@ -233,15 +244,26 @@ function main() {
     );
   }
 
-  const tuningRows = evaluate(index, model, tuning, { seed: 99, noise: 0, parameters: best });
-  const heldoutRows = evaluate(index, model, heldout, { seed: 2024, noise: 0, parameters: best });
+  const tuningRows = evaluate(index, model, tuning, {
+    seed: 99,
+    noise: 0,
+    parameters: best,
+    ignoreDenied: IGNORE_DENIED
+  });
+  const heldoutRows = evaluate(index, model, heldout, {
+    seed: 2024,
+    noise: 0,
+    parameters: best,
+    ignoreDenied: IGNORE_DENIED
+  });
   const tuningTable = summarize(tuningRows);
   const heldoutTable = summarize(heldoutRows);
 
   const noisyRows = evaluate(index, model, heldout, {
     seed: 7,
     noise: NOISE_SHARE,
-    parameters: best
+    parameters: best,
+    ignoreDenied: IGNORE_DENIED
   });
   const noisyTable = summarize(noisyRows);
 
@@ -287,6 +309,7 @@ function main() {
   const report = {
     generated: bundle.meta.generated,
     thresholds: THRESHOLDS,
+    ignoreDenied: IGNORE_DENIED,
     split: { tuning: tuning.length, heldout: heldout.length },
     parameters: best,
     grid,
