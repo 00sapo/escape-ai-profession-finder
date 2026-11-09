@@ -33,8 +33,38 @@ export async function reachActivities(page) {
   await expect(page.locator('#activity-list li[data-dwa]').first()).toBeVisible();
 }
 
-export async function reachResults(page) {
+export async function selectActivities(page, count = 4) {
+  const boxes = page.locator('#activity-list input[data-enabled]');
+  const total = await boxes.count();
+  const wanted = Math.min(count, total);
+  for (let index = 0; index < wanted; index += 1) {
+    if (!(await boxes.nth(index).isChecked())) {
+      await boxes.nth(index).check();
+    }
+  }
+  await expect(page.locator('#activities-continue')).toBeEnabled();
+}
+
+export async function reachRank(page, count = 4) {
   await reachActivities(page);
-  await page.locator('#activities-done').click();
+  await selectActivities(page, count);
+  await page.locator('#activities-continue').click();
+  await expect(page.locator('#screen-rank')).toBeVisible();
+  await expect(page.locator('#rank-list li[data-dwa]').first()).toBeVisible();
+}
+
+export async function answerRanking(page, max = 12) {
+  for (let step = 0; step < max; step += 1) {
+    if (await page.locator('#screen-results').isVisible()) {
+      return;
+    }
+    await expect(page.locator('#screen-rank')).toBeVisible();
+    await page.locator('#rank-confirm').click();
+  }
   await expect(page.locator('#screen-results')).toBeVisible();
+}
+
+export async function reachResults(page) {
+  await reachRank(page);
+  await answerRanking(page);
 }

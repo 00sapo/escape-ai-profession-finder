@@ -7,9 +7,10 @@
 
   var dataset = self.__AI_EXPOSURE_DATASET__;
   var model = self.AIExposureModel;
+  var ranker = self.AIExposureRank;
   var fuzzy = self.AIExposureFuzzy;
   var i18n = self.AIExposureI18n;
-  if (!dataset || !model || !i18n) {
+  if (!dataset || !model || !ranker || !i18n) {
     return;
   }
 
@@ -39,7 +40,12 @@
     slide: 0,
     selectedOccupations: [],
     activityOrder: [],
-    activityEnabled: new Map()
+    activityEnabled: new Map(),
+    rankModel: null,
+    rankQuestion: null,
+    rankBuckets: null,
+    rankLeafOrder: null,
+    rankOrder: null
   };
 
   var elements = {};
@@ -193,6 +199,7 @@
       'slide-next',
       'slide-skip',
       'screen-activities',
+      'screen-rank',
       'screen-results',
       'occupation-search',
       'occupation-count',
@@ -200,8 +207,15 @@
       'selected-occupations',
       'occupations-continue',
       'activity-list',
+      'activities-count',
       'activities-back',
-      'activities-done',
+      'activities-continue',
+      'rank-list',
+      'rank-board',
+      'rank-question',
+      'rank-status',
+      'rank-back',
+      'rank-confirm',
       'results-back',
       'activity-info',
       'activity-info-area',
@@ -297,6 +311,8 @@
       renderOccupationScreen();
     } else if (state.screen === 'activities') {
       renderActivityScreen();
+    } else if (state.screen === 'rank') {
+      renderRankScreen();
     } else if (state.screen === 'results' && state.fit) {
       renderScore();
       renderRepresentatives(state.fit);
@@ -306,7 +322,8 @@
 
   function setScreen(name) {
     state.screen = name;
-    ['slides', 'occupations', 'activities', 'results'].forEach(function (screen) {
+    document.body.setAttribute('data-screen', name);
+    ['slides', 'occupations', 'activities', 'rank', 'results'].forEach(function (screen) {
       var node = elements['screen-' + screen];
       if (node) {
         node.hidden = screen !== name;
@@ -354,7 +371,7 @@
     state.activityOrder = kept;
     present.forEach(function (dwaIndex) {
       if (!state.activityEnabled.has(dwaIndex)) {
-        state.activityEnabled.set(dwaIndex, true);
+        state.activityEnabled.set(dwaIndex, false);
       }
     });
     Array.from(state.activityEnabled.keys()).forEach(function (dwaIndex) {
@@ -362,6 +379,24 @@
         state.activityEnabled.delete(dwaIndex);
       }
     });
+    refreshRankItems();
+  }
+
+  function selectedActivities() {
+    return state.activityOrder.filter(function (dwaIndex) {
+      return state.activityEnabled.get(dwaIndex) === true;
+    });
+  }
+
+  /* Keep the deterministic ranking session aligned with the selected
+   * activities. A selection change starts a new session. */
+  function refreshRankItems() {
+    var selected = selectedActivities();
+    state.rankOrder = null;
+    state.rankQuestion = null;
+    state.rankBuckets = null;
+    state.rankLeafOrder = null;
+    state.rankModel = selected.length > 0 ? ranker.create(selected) : null;
   }
 
   function occupationButton(occupationIndex) {
@@ -492,17 +527,18 @@
     syncUrl();
   }
 
-  /* --- Occupation flow: ordered union of activities -------------------- */
+  /* --- Occupation flow: activity selection and ranking ---------------- */
 
   function activityCheckbox(dwaIndex) {
     var checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.id = 'activity-' + dwaIndex;
     checkbox.setAttribute('data-enabled', '');
-    checkbox.checked = state.activityEnabled.get(dwaIndex) !== false;
+    checkbox.checked = state.activityEnabled.get(dwaIndex) === true;
     checkbox.addEventListener('change', function () {
       state.activityEnabled.set(dwaIndex, checkbox.checked);
-      updateActivitiesDone();
+      refreshRankItems();
+      updateActivitiesContinue();
       syncUrl();
     });
     return checkbox;
@@ -511,12 +547,10 @@
   function renderActivityScreen() {
     var list = elements['activity-list'];
     list.textContent = '';
-    state.activityOrder.forEach(function (dwaIndex, position) {
+    state.activityOrder.forEach(function (dwaIndex) {
       var row = document.createElement('li');
       row.className = 'activity-item';
       row.setAttribute('data-dwa', String(dwaIndex));
-      row.setAttribute('draggable', 'true');
-      row.appendChild(rankInput(position, state.activityOrder.length));
       var checkbox = activityCheckbox(dwaIndex);
       var label = document.createElement('label');
       label.className = 'activity-label';
@@ -525,38 +559,163 @@
       addSourceLine(activityNode, dataset.dwas[dwaIndex].n, activityLabel(dwaIndex));
       label.appendChild(activityNode);
       label.appendChild(element('span', 'dwa-parent', parentText(dwaIndex)));
-      var moves = element('div', 'activity-moves');
-      moves.appendChild(moveButton('up', t('activity.moveUp'), position === 0));
-      moves.appendChild(moveButton('down', t('activity.moveDown'), position === state.activityOrder.length - 1));
       var info = element('button', 'info-button', 'i');
       info.type = 'button';
       info.setAttribute('data-info', String(dwaIndex));
       info.appendChild(element('span', 'visually-hidden', ' ' + t('info.openFor', { activity: activityLabel(dwaIndex) })));
       row.appendChild(checkbox);
       row.appendChild(label);
-      row.appendChild(moves);
       row.appendChild(info);
       list.appendChild(row);
     });
-    updateActivitiesDone();
+    updateActivitiesContinue();
   }
 
-  function updateActivitiesDone() {
-    elements['activities-done'].disabled = !state.activityOrder.some(function (dwaIndex) {
-      return state.activityEnabled.get(dwaIndex) !== false;
+  function updateActivitiesContinue() {
+    var selected = selectedActivities().length;
+    elements['activities-count'].textContent = t('activities.count', {
+      selected: i18n.number(selected, 0),
+      total: i18n.number(state.activityOrder.length, 0)
+    });
+    elements['activities-continue'].disabled = selected === 0;
+  }
+
+  function rankRow(dwaIndex) {
+    var row = document.createElement('li');
+    row.className = 'rank-item';
+    row.setAttribute('data-dwa', String(dwaIndex));
+    var label = element('span', 'rank-label');
+    var name = element('span', 'activity-name rank-name', activityLabel(dwaIndex));
+    name.title = activityLabel(dwaIndex);
+    label.appendChild(name);
+    var moves = element('div', 'activity-moves rank-moves');
+    moves.appendChild(moveButton('up', t('activity.moveUp'), false));
+    moves.appendChild(moveButton('down', t('activity.moveDown'), false));
+    row.appendChild(label);
+    row.appendChild(moves);
+    return row;
+  }
+
+  function bucketCard(dwaIndex, bucketKey) {
+    var row = document.createElement('li');
+    row.className = 'bucket-card';
+    row.setAttribute('data-dwa', String(dwaIndex));
+    var name = element('span', 'bucket-name', activityLabel(dwaIndex));
+    name.title = activityLabel(dwaIndex);
+    row.appendChild(name);
+    var controls = element('span', 'bucket-controls');
+    var more = element('button', 'bucket-move arrow-more');
+    more.type = 'button';
+    more.setAttribute('data-bucket-move', 'more');
+    more.disabled = bucketKey === 'high';
+    more.appendChild(element('span', 'visually-hidden', t('rank.moveMore') + ' ' + activityLabel(dwaIndex)));
+    var less = element('button', 'bucket-move arrow-less');
+    less.type = 'button';
+    less.setAttribute('data-bucket-move', 'less');
+    less.disabled = bucketKey === 'low';
+    less.appendChild(element('span', 'visually-hidden', t('rank.moveLess') + ' ' + activityLabel(dwaIndex)));
+    controls.appendChild(more);
+    controls.appendChild(less);
+    row.appendChild(controls);
+    return row;
+  }
+
+  function renderRankScreen() {
+    var question = state.rankQuestion;
+    if (!question) {
+      return;
+    }
+    var progress = ranker.progress(state.rankModel);
+    elements['rank-question'].textContent = t('rank.question', {
+      number: i18n.number(progress.answered + 1, 0)
+    });
+    if (question.type === 'group') {
+      elements['rank-board'].hidden = false;
+      elements['rank-list'].hidden = true;
+      elements['rank-status'].textContent = t('rank.groupHint');
+      renderRankBoard();
+    } else {
+      elements['rank-board'].hidden = true;
+      elements['rank-list'].hidden = false;
+      elements['rank-status'].textContent = t('rank.orderHint');
+      renderRankOrder();
+    }
+    updateRankConfirm();
+  }
+
+  function renderRankBoard() {
+    var board = elements['rank-board'];
+    board.textContent = '';
+    [
+      { key: 'high', label: t('rank.more') },
+      { key: 'normal', label: t('rank.normal') },
+      { key: 'low', label: t('rank.less') }
+    ].forEach(function (bucket) {
+      var section = document.createElement('section');
+      section.className = 'bucket';
+      section.setAttribute('data-bucket', bucket.key);
+      var title = element('h3', 'bucket-title');
+      title.appendChild(document.createTextNode(bucket.label + ' '));
+      title.appendChild(
+        element('span', 'bucket-count', '(' + i18n.number(state.rankBuckets[bucket.key].length, 0) + ')')
+      );
+      section.appendChild(title);
+      var list = document.createElement('ul');
+      list.className = 'bucket-list';
+      state.rankBuckets[bucket.key].forEach(function (dwaIndex) {
+        list.appendChild(bucketCard(dwaIndex, bucket.key));
+      });
+      section.appendChild(list);
+      board.appendChild(section);
     });
   }
 
-  function updateActivityMoveButtons() {
-    var rows = elements['activity-list'].querySelectorAll('li[data-dwa]');
+  function renderRankOrder() {
+    var list = elements['rank-list'];
+    list.textContent = '';
+    state.rankLeafOrder.forEach(function (dwaIndex) {
+      list.appendChild(rankRow(dwaIndex));
+    });
+    updateRankMoveButtons();
+  }
+
+  function updateRankConfirm() {
+    if (!state.rankQuestion) {
+      elements['rank-confirm'].disabled = true;
+      return;
+    }
+    if (state.rankQuestion.type === 'order') {
+      elements['rank-confirm'].disabled = false;
+      return;
+    }
+    var nonEmpty = 0;
+    ['high', 'normal', 'low'].forEach(function (key) {
+      if (state.rankBuckets[key].length > 0) {
+        nonEmpty += 1;
+      }
+    });
+    elements['rank-confirm'].disabled = nonEmpty < 2;
+  }
+
+  function updateRankMoveButtons() {
+    var rows = elements['rank-list'].querySelectorAll('li[data-dwa]');
     rows.forEach(function (row, position) {
       row.querySelector('button[data-move="up"]').disabled = position === 0;
       row.querySelector('button[data-move="down"]').disabled = position === rows.length - 1;
     });
   }
 
-  function moveActivityRow(dwaIndex, direction) {
-    var list = elements['activity-list'];
+  function syncLeafOrder() {
+    state.rankLeafOrder = Array.prototype.map.call(
+      elements['rank-list'].querySelectorAll('li[data-dwa]'),
+      function (row) {
+        return Number(row.getAttribute('data-dwa'));
+      }
+    );
+  }
+
+  function moveRankRow(dwaIndex, direction) {
+    var list = elements['rank-list'];
     var rows = Array.prototype.slice.call(list.querySelectorAll('li[data-dwa]'));
     var position = -1;
     for (var i = 0; i < rows.length; i += 1) {
@@ -577,13 +736,8 @@
     } else {
       list.insertBefore(rows[target], rows[position]);
     }
-    updateActivityMoveButtons();
-    state.activityOrder = Array.prototype.map.call(
-      list.querySelectorAll('li[data-dwa]'),
-      function (row) {
-        return Number(row.getAttribute('data-dwa'));
-      }
-    );
+    updateRankMoveButtons();
+    syncLeafOrder();
     var moved = list.querySelector('li[data-dwa="' + dwaIndex + '"]');
     var wanted = direction < 0 ? 'up' : 'down';
     var focusButton = moved.querySelector('button[data-move="' + wanted + '"]');
@@ -592,9 +746,112 @@
     }
     if (focusButton && !focusButton.disabled) {
       focusButton.focus();
-    } else {
-      moved.querySelector('input[data-enabled]').focus();
     }
+  }
+
+  function moveBucketCard(dwaIndex, direction) {
+    var order = ['high', 'normal', 'low'];
+    var current = null;
+    order.forEach(function (key) {
+      if (state.rankBuckets[key].indexOf(dwaIndex) >= 0) {
+        current = key;
+      }
+    });
+    if (!current) {
+      return;
+    }
+    var index = order.indexOf(current);
+    var target = direction === 'more' ? index - 1 : index + 1;
+    if (target < 0 || target >= order.length) {
+      return;
+    }
+    var source = state.rankBuckets[current];
+    source.splice(source.indexOf(dwaIndex), 1);
+    state.rankBuckets[order[target]].push(dwaIndex);
+    renderRankBoard();
+    updateRankConfirm();
+    var moved = elements['rank-board'].querySelector('li[data-dwa="' + dwaIndex + '"]');
+    if (!moved) {
+      return;
+    }
+    var button = moved.querySelector(
+      direction === 'more' ? '[data-bucket-move="more"]' : '[data-bucket-move="less"]'
+    );
+    if (button && !button.disabled) {
+      button.focus();
+    } else {
+      var other = moved.querySelector('[data-bucket-move]:not([disabled])');
+      if (other) {
+        other.focus();
+      }
+    }
+  }
+
+  function startQuestion() {
+    var question = ranker.nextQuestion(state.rankModel);
+    state.rankQuestion = question;
+    if (!question) {
+      state.rankOrder = ranker.order(state.rankModel);
+      showOccupationResults();
+      return;
+    }
+    if (question.type === 'group') {
+      state.rankBuckets = { high: [], normal: question.items.slice(), low: [] };
+      state.rankLeafOrder = null;
+    } else {
+      state.rankBuckets = null;
+      state.rankLeafOrder = question.items.slice();
+    }
+    renderRankScreen();
+    setScreen('rank');
+  }
+
+  function openRanking() {
+    var selected = selectedActivities();
+    if (selected.length === 0) {
+      return;
+    }
+    if (!state.rankModel) {
+      state.rankModel = ranker.create(selected);
+      state.rankOrder = null;
+    }
+    if (state.rankQuestion) {
+      renderRankScreen();
+      setScreen('rank');
+      return;
+    }
+    if (ranker.isDone(state.rankModel)) {
+      state.rankOrder = ranker.order(state.rankModel);
+      showOccupationResults();
+      return;
+    }
+    startQuestion();
+  }
+
+  function confirmRank() {
+    var question = state.rankQuestion;
+    if (!question || !state.rankModel) {
+      return;
+    }
+    if (question.type === 'group') {
+      if (!ranker.answerGroup(state.rankModel, state.rankBuckets)) {
+        return;
+      }
+    } else {
+      syncLeafOrder();
+      if (!ranker.answerOrder(state.rankModel, state.rankLeafOrder)) {
+        return;
+      }
+    }
+    state.rankQuestion = null;
+    state.rankBuckets = null;
+    state.rankLeafOrder = null;
+    if (ranker.isDone(state.rankModel)) {
+      state.rankOrder = ranker.order(state.rankModel);
+      showOccupationResults();
+      return;
+    }
+    startQuestion();
   }
 
   /* Fuzzy title similarity between every occupation and the chosen titles.
@@ -619,23 +876,35 @@
     return similarity;
   }
 
-  /* The ordered union is the evidence: enabled activities are performed,
-   * disabled ones are denied. Priority is the list order; frequency stays out
-   * of this path, so the order alone carries the priority. */
+  /* Selected activities are performed, unselected ones are denied. The
+   * inferred ranking is the priority order. Frequency stays out of this path,
+   * so the order alone carries the priority. */
   function showOccupationResults() {
+    var selected = selectedActivities();
+    var ordered = state.rankOrder
+      ? state.rankOrder.slice()
+      : state.rankModel
+        ? ranker.order(state.rankModel)
+        : selected.slice();
     var performed = [];
-    var denied = [];
-    state.activityOrder.forEach(function (dwaIndex) {
-      if (state.activityEnabled.get(dwaIndex) === false) {
-        denied.push(dwaIndex);
-      } else {
+    ordered.forEach(function (dwaIndex) {
+      if (state.activityEnabled.get(dwaIndex) === true && performed.indexOf(dwaIndex) < 0) {
         performed.push(dwaIndex);
       }
     });
+    selected.forEach(function (dwaIndex) {
+      if (performed.indexOf(dwaIndex) < 0) {
+        performed.push(dwaIndex);
+      }
+    });
+    var denied = state.activityOrder.filter(function (dwaIndex) {
+      return state.activityEnabled.get(dwaIndex) !== true;
+    });
+    state.rankOrder = performed.slice();
     var evidence = {
       performed: Int32Array.from(performed),
       denied: Int32Array.from(denied),
-      priority: Int32Array.from(state.activityOrder),
+      priority: Int32Array.from(performed),
       priorityImportance: dataset.priorityImportance,
       titleSimilarity: titleSimilarityFor(state.selectedOccupations)
     };
@@ -653,136 +922,7 @@
     syncUrl();
   }
 
-  /* --- Activity list controls ----------------------------------------- */
-
-  function rankInput(position, total) {
-    var input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'rank-input';
-    input.min = '1';
-    input.max = String(total);
-    input.step = '1';
-    input.value = String(position + 1);
-    input.setAttribute('data-rank', '');
-    input.setAttribute('inputmode', 'numeric');
-    input.setAttribute('aria-label', t('row.rank'));
-    return input;
-  }
-
-  function listRows(list) {
-    return Array.prototype.slice.call(list.querySelectorAll('li[data-dwa]'));
-  }
-
-  function syncListOrder(list) {
-    state.activityOrder = listRows(list).map(function (row) {
-      return Number(row.getAttribute('data-dwa'));
-    });
-  }
-
-  function renumberList(list) {
-    listRows(list).forEach(function (row, position) {
-      var input = row.querySelector('input[data-rank]');
-      if (input) {
-        input.value = String(position + 1);
-        input.max = String(listRows(list).length);
-      }
-    });
-  }
-
-  function refreshMoveButtonsFor() {
-    updateActivityMoveButtons();
-  }
-
-  /* Move one row to a 1-based position. The row keeps its inputs, so the
-   * frequency and the enabled flag stay with the activity. */
-  function moveRowTo(list, dwaIndex, targetIndex) {
-    var rows = listRows(list);
-    var position = -1;
-    for (var i = 0; i < rows.length; i += 1) {
-      if (Number(rows[i].getAttribute('data-dwa')) === dwaIndex) {
-        position = i;
-        break;
-      }
-    }
-    if (position < 0) {
-      return;
-    }
-    targetIndex = Math.max(0, Math.min(rows.length - 1, targetIndex));
-    if (targetIndex === position) {
-      renumberList(list);
-      return;
-    }
-    var row = rows[position];
-    if (targetIndex < position) {
-      list.insertBefore(row, rows[targetIndex]);
-    } else {
-      list.insertBefore(row, rows[targetIndex].nextSibling);
-    }
-    syncListOrder(list);
-    renumberList(list);
-    refreshMoveButtonsFor();
-    syncUrl();
-    var rank = row.querySelector('input[data-rank]');
-    if (rank) {
-      rank.focus();
-      rank.select();
-    }
-  }
-
-  function commitRank(list, input) {
-    var row = input.closest('li[data-dwa]');
-    var rows = listRows(list);
-    var position = rows.indexOf(row);
-    var value = parseInt(input.value, 10);
-    if (!row || position < 0 || !isFinite(value) || value < 1 || value > rows.length) {
-      input.value = String(position + 1);
-      return;
-    }
-    moveRowTo(list, Number(row.getAttribute('data-dwa')), value - 1);
-  }
-
-  function wireDrag(list) {
-    var dragged = null;
-    list.addEventListener('dragstart', function (event) {
-      var row = event.target.closest ? event.target.closest('li[data-dwa]') : null;
-      if (!row) {
-        return;
-      }
-      dragged = row;
-      row.setAttribute('data-dragging', 'true');
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = 'move';
-        try {
-          event.dataTransfer.setData('text/plain', row.getAttribute('data-dwa'));
-        } catch (error) {
-          /* some browsers refuse the write during a synthetic drag */
-        }
-      }
-    });
-    list.addEventListener('dragend', function () {
-      if (dragged) {
-        dragged.removeAttribute('data-dragging');
-      }
-      dragged = null;
-    });
-    list.addEventListener('dragover', function (event) {
-      if (dragged) {
-        event.preventDefault();
-      }
-    });
-    list.addEventListener('drop', function (event) {
-      if (!dragged) {
-        return;
-      }
-      event.preventDefault();
-      var target = event.target.closest ? event.target.closest('li[data-dwa]') : null;
-      if (!target) {
-        return;
-      }
-      var rows = listRows(list);
-      moveRowTo(list, Number(dragged.getAttribute('data-dwa')), rows.indexOf(target));
-    });
-  }
+  /* --- Ranking controls ----------------------------------------------- */
 
   function moveButton(direction, label, disabled) {
     var button = element('button', 'move-button', direction === 'up' ? '↑' : '↓');
@@ -1212,10 +1352,19 @@
     state.selectedOccupations = [];
     state.activityOrder = [];
     state.activityEnabled = new Map();
+    state.rankModel = null;
+    state.rankQuestion = null;
+    state.rankBuckets = null;
+    state.rankLeafOrder = null;
+    state.rankOrder = null;
     elements['occupation-search'].value = '';
     elements['occupation-results'].textContent = '';
     elements['selected-occupations'].textContent = '';
     elements['activity-list'].textContent = '';
+    elements['rank-list'].textContent = '';
+    elements['rank-board'].textContent = '';
+    elements['rank-question'].textContent = '';
+    elements['rank-status'].textContent = '';
     elements.ranking.textContent = '';
     elements.representatives.textContent = '';
     renderOccupationScreen();
@@ -1302,6 +1451,35 @@
       var infoButton = target.closest('[data-info]');
       if (infoButton) {
         openInfo(Number(infoButton.getAttribute('data-info')));
+      }
+    });
+    elements['activities-back'].addEventListener('click', function () {
+      renderOccupationScreen();
+      setScreen('occupations');
+    });
+    elements['activities-continue'].addEventListener('click', openRanking);
+
+    elements['rank-board'].addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target.closest) {
+        return;
+      }
+      var move = target.closest('[data-bucket-move]');
+      if (!move || move.disabled) {
+        return;
+      }
+      var card = move.closest('li[data-dwa]');
+      if (!card) {
+        return;
+      }
+      moveBucketCard(
+        Number(card.getAttribute('data-dwa')),
+        move.getAttribute('data-bucket-move')
+      );
+    });
+    elements['rank-list'].addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target.closest) {
         return;
       }
       var move = target.closest('[data-move]');
@@ -1312,20 +1490,13 @@
       if (!row) {
         return;
       }
-      moveActivityRow(Number(row.getAttribute('data-dwa')), move.getAttribute('data-move') === 'up' ? -1 : 1);
+      moveRankRow(Number(row.getAttribute('data-dwa')), move.getAttribute('data-move') === 'up' ? -1 : 1);
     });
-    elements['activity-list'].addEventListener('change', function (event) {
-      var input = event.target.closest ? event.target.closest('input[data-rank]') : null;
-      if (input) {
-        commitRank(elements['activity-list'], input);
-      }
+    elements['rank-back'].addEventListener('click', function () {
+      renderActivityScreen();
+      setScreen('activities');
     });
-    wireDrag(elements['activity-list']);
-    elements['activities-back'].addEventListener('click', function () {
-      renderOccupationScreen();
-      setScreen('occupations');
-    });
-    elements['activities-done'].addEventListener('click', showOccupationResults);
+    elements['rank-confirm'].addEventListener('click', confirmRank);
 
 
 
@@ -1403,20 +1574,28 @@
     var occupations = state.selectedOccupations.map(function (occupation) {
       return dataset.occupations[occupation].c;
     });
-    var order = state.activityOrder.map(function (dwa) {
-      return dataset.dwas[dwa].i;
-    });
-    var disabled = [];
-    state.activityOrder.forEach(function (dwa) {
-      if (state.activityEnabled.get(dwa) === false) {
-        disabled.push(dataset.dwas[dwa].i);
+    var ordered = state.rankOrder ? state.rankOrder.slice() : selectedActivities();
+    var performed = [];
+    ordered.forEach(function (dwa) {
+      if (state.activityEnabled.get(dwa) === true && performed.indexOf(dwa) < 0) {
+        performed.push(dwa);
       }
     });
-    return { v: 1, o: occupations, a: order, d: disabled, lang: i18n.get() };
+    selectedActivities().forEach(function (dwa) {
+      if (performed.indexOf(dwa) < 0) {
+        performed.push(dwa);
+      }
+    });
+    return {
+      v: 2,
+      o: occupations,
+      p: performed.map(function (dwa) { return dataset.dwas[dwa].i; }),
+      lang: i18n.get()
+    };
   }
 
   function encodedState() {
-    if (state.selectedOccupations.length === 0) {
+    if (state.selectedOccupations.length === 0 || selectedActivities().length === 0) {
       return '';
     }
     return toBase64Url(JSON.stringify(statePayload()));
@@ -1451,14 +1630,14 @@
     }
     try {
       var parsed = JSON.parse(fromBase64Url(raw));
-      return parsed && parsed.v === 1 ? parsed : null;
+      return parsed && (parsed.v === 1 || parsed.v === 2) ? parsed : null;
     } catch (error) {
       return null;
     }
   }
 
   function restoreState(shared) {
-    if (!shared || !shared.o || !shared.a) {
+    if (!shared || !shared.o) {
       return;
     }
     var occupations = [];
@@ -1473,40 +1652,54 @@
     }
     state.selectedOccupations = occupations;
 
-    var present = new Set();
+    var present = [];
+    var inUnion = new Set();
     occupations.forEach(function (occupation) {
       dataset.occupations[occupation].dwa.forEach(function (dwa) {
-        present.add(dwa);
+        if (!inUnion.has(dwa)) {
+          inUnion.add(dwa);
+          present.push(dwa);
+        }
       });
     });
-    var order = [];
-    shared.a.forEach(function (element) {
-      var dwa = dwaByElement.get(element);
-      if (dwa !== undefined && present.has(dwa) && order.indexOf(dwa) < 0) {
-        order.push(dwa);
-      }
-    });
-    present.forEach(function (dwa) {
-      if (order.indexOf(dwa) < 0) {
-        order.push(dwa);
-      }
-    });
-    state.activityOrder = order;
+    state.activityOrder = present;
     state.activityEnabled = new Map();
-    order.forEach(function (dwa) {
-      state.activityEnabled.set(dwa, true);
+    present.forEach(function (dwa) {
+      state.activityEnabled.set(dwa, false);
     });
-    if (shared.d) {
-      shared.d.forEach(function (element) {
+
+    var performed = [];
+    if (shared.v === 2) {
+      (shared.p || []).forEach(function (element) {
         var dwa = dwaByElement.get(element);
-        if (dwa !== undefined && state.activityEnabled.has(dwa)) {
+        if (dwa !== undefined && inUnion.has(dwa) && performed.indexOf(dwa) < 0) {
+          performed.push(dwa);
+          state.activityEnabled.set(dwa, true);
+        }
+      });
+      (shared.d || []).forEach(function (element) {
+        var dwa = dwaByElement.get(element);
+        if (dwa !== undefined && inUnion.has(dwa)) {
           state.activityEnabled.set(dwa, false);
         }
       });
+    } else {
+      var disabled = new Set(shared.d || []);
+      (shared.a || []).forEach(function (element) {
+        var dwa = dwaByElement.get(element);
+        if (dwa !== undefined && inUnion.has(dwa) && !disabled.has(element) && performed.indexOf(dwa) < 0) {
+          performed.push(dwa);
+          state.activityEnabled.set(dwa, true);
+        }
+      });
     }
+    state.rankModel = null;
+    state.rankQuestion = null;
+    state.rankBuckets = null;
+    state.rankLeafOrder = null;
+    state.rankOrder = performed.slice();
     renderOccupationScreen();
-    if (order.length === 0) {
-      rebuildActivities();
+    if (performed.length === 0) {
       renderActivityScreen();
       setScreen('activities');
       syncUrl();

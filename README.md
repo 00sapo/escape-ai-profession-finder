@@ -3,15 +3,18 @@
 ## What it does
 
 The site shows the OECD AI exposure of an occupation. You search for one or more
-occupations. You select the activities that you perform. You set their order.
-The site shows the OECD AI Capability Gap of that profile. A low gap means low
-resilience and high exposure. A high gap means high resilience.
+occupations. You select the activities that you perform. The site then asks you
+to split the activities into frequency groups: more frequent, normal, and less
+frequent. It repeats the split for each group until a group has four activities
+or fewer. The order is deterministic and transitive. The site shows the OECD AI
+Capability Gap of that profile. A low gap means low resilience and high
+exposure. A high gap means high resilience.
 
 The site runs in the browser. No data leaves your device.
 
-The results URL stores the chosen occupations, the activity order, the enabled
-activities, and the language. Open the URL to restore the state and repeat the
-estimate. The Copy link button copies the URL.
+The results URL stores the chosen occupations, the selected activities, the
+inferred activity order, and the language. Open the URL to restore the state and
+repeat the estimate. The Copy link button copies the URL.
 
 ## Run the site
 

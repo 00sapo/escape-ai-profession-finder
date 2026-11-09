@@ -8,6 +8,9 @@ import {
   startOccupations,
   selectOccupation,
   reachActivities,
+  selectActivities,
+  reachRank,
+  answerRanking,
   reachResults
 } from './flow.js';
 
@@ -281,9 +284,16 @@ test('occupation flow is usable with clicks only and the layout holds', async ({
   await page.locator('#occupations-continue').click();
   await expect(page.locator('#screen-activities')).toBeVisible();
   await expect(page.locator('#activity-list li[data-dwa]').first()).toBeVisible();
+  await expect(page.locator('#activity-list input[data-enabled]:checked')).toHaveCount(0);
+  await expect(page.locator('#activities-continue')).toBeDisabled();
   await assertLayoutIsSound(page);
 
-  await page.locator('#activities-done').click();
+  await selectActivities(page, 4);
+  await expect(page.locator('#activities-continue')).toBeEnabled();
+  await page.locator('#activities-continue').click();
+  await expect(page.locator('#screen-rank')).toBeVisible();
+  await assertLayoutIsSound(page);
+  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await assertLayoutIsSound(page);
   expect(await axeSerious(page)).toEqual([]);
@@ -416,59 +426,41 @@ test('the occupation detail lists the nine domains', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
-test('the activity order changes the estimate', async ({ page }) => {
-  await startOccupations(page);
-  await selectOccupation(page, 'chief');
-  await selectOccupation(page, 'account');
-  await expect(page.locator('#selected-occupations li')).toHaveCount(2);
-  await page.locator('#occupations-continue').click();
-  await expect(page.locator('#screen-activities')).toBeVisible();
-  await expect(page.locator('#activity-list li[data-dwa]').first()).toBeVisible();
+test('the ranking order changes the estimate', async ({ page }) => {
+  async function run(reverse) {
+    await startOccupations(page);
+    await selectOccupation(page, 'chief');
+    await page.locator('#occupations-continue').click();
+    await expect(page.locator('#screen-activities')).toBeVisible();
+    await selectActivities(page, 4);
+    await page.locator('#activities-continue').click();
+    await expect(page.locator('#screen-rank')).toBeVisible();
 
-  const score = page.locator('#score-value');
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
-  const first = (await score.textContent()).trim();
-  expect(first).toMatch(/\d+,\d\d/);
-
-  await page.locator('#results-back').click();
-  await expect(page.locator('#screen-activities')).toBeVisible();
-
-  const rows = page.locator('#activity-list li[data-dwa]');
-  const codes = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
-  const total = codes.length;
-  expect(total).toBeGreaterThan(1);
-  for (let index = 0; index < codes.length; index += 1) {
-    const rank = page.locator(`#activity-list li[data-dwa="${codes[index]}"] input[data-rank]`);
-    await rank.fill(String(total - index));
-    await rank.blur();
-  }
-  await expect(page.locator('#activity-list li[data-dwa]').first()).toHaveAttribute('data-dwa', codes[total - 1]);
-  await expect(page.locator('#activity-list li[data-dwa]').last()).toHaveAttribute('data-dwa', codes[0]);
-
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
-  await expect
-    .poll(async () => (await score.textContent()).trim(), {
-      message: 'reversing the activity order should change the estimated gap'
-    })
-    .not.toBe(first);
-
-  await page.locator('#results-back').click();
-  await expect(page.locator('#screen-activities')).toBeVisible();
-
-  const boxes = page.locator('#activity-list input[data-enabled]');
-  const boxCount = await boxes.count();
-  expect(boxCount).toBeGreaterThan(1);
-  for (let index = 1; index < boxCount; index += 1) {
-    if (await boxes.nth(index).isChecked()) {
-      await boxes.nth(index).uncheck();
+    const rows = page.locator('#rank-list li[data-dwa]');
+    const total = await rows.count();
+    expect(total).toBe(4);
+    const order = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
+    if (reverse) {
+      const reversed = order.slice().reverse();
+      for (let index = 0; index < reversed.length - 1; index += 1) {
+        const code = reversed[index];
+        for (let step = 0; step < reversed.length - 1 - index; step += 1) {
+          await page.locator(`#rank-list li[data-dwa="${code}"] [data-move="up"]`).click();
+        }
+      }
     }
+    const answered = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
+    await page.locator('#rank-confirm').click();
+    await expect(page.locator('#screen-results')).toBeVisible();
+    const gap = await page.evaluate(() => window.__AI_EXPOSURE_APP__.state.fit.gap);
+    return { gap, order, answered };
   }
-  await expect(page.locator('#activities-done')).toBeEnabled();
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
-  await expect(score).toHaveText(/\d+,\d\d/);
+
+  const straight = await run(false);
+  const reversed = await run(true);
+  expect(reversed.answered).toEqual(straight.answered.slice().reverse());
+  expect(reversed.gap, 'reversing the inferred ranking should change the estimated gap').not.toBe(straight.gap);
+  await expect(page.locator('#score-value')).toHaveText(/\d+[.,]\d\d/);
 });
 
 test('filters and CSV export work', async ({ page }) => {
@@ -506,7 +498,9 @@ test('the page runs from disk with no network request', async ({ page }, testInf
   await enterOccupations(page);
   await selectOccupation(page);
   await page.locator('#occupations-continue').click();
-  await page.locator('#activities-done').click();
+  await selectActivities(page, 4);
+  await page.locator('#activities-continue').click();
+  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await expect(page.locator('#score-value')).toBeVisible();
   expect(requests).toEqual([]);
@@ -628,7 +622,9 @@ test('switches language without losing the flow', async ({ page }) => {
   await enterOccupations(page);
   await selectOccupation(page);
   await page.locator('#occupations-continue').click();
-  await page.locator('#activities-done').click();
+  await selectActivities(page, 4);
+  await page.locator('#activities-continue').click();
+  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await expect(page.locator('#score-scale')).toContainText(/less resilient/i);
   await expect(page.locator('#results-legend')).toContainText('lower');
@@ -657,7 +653,11 @@ test('no screen renders a raw translation key', async ({ page }) => {
   await expect(page.locator('#screen-activities')).toBeVisible();
   await assertNoRawTranslationKeys(page);
 
-  await page.locator('#activities-done').click();
+  await selectActivities(page, 4);
+  await page.locator('#activities-continue').click();
+  await expect(page.locator('#screen-rank')).toBeVisible();
+  await assertNoRawTranslationKeys(page);
+  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await assertNoRawTranslationKeys(page);
 
@@ -686,30 +686,28 @@ test('every language renders and holds the layout', async ({ page }) => {
 });
 
 test('the results URL restores the chosen occupations and activities', async ({ page }) => {
-  await reachActivities(page);
-  const first = page.locator('#activity-list li[data-dwa]').first();
-  const second = page.locator('#activity-list li[data-dwa]').nth(1);
-  const firstDwa = await first.getAttribute('data-dwa');
-  const secondDwa = await second.getAttribute('data-dwa');
-
-  await first.locator('input[data-enabled]').uncheck();
-  await second.locator('[data-move="up"]').click();
-  await page.locator('#activities-done').click();
-  await expect(page.locator('#screen-results')).toBeVisible();
+  await reachResults(page);
   const score = await page.locator('#score-value').textContent();
+  const before = await page.evaluate(() => ({
+    rankOrder: window.__AI_EXPOSURE_APP__.state.rankOrder.slice(),
+    enabled: Array.from(window.__AI_EXPOSURE_APP__.state.activityEnabled.entries())
+  }));
+  expect(before.rankOrder.length).toBe(4);
   const url = page.url();
   expect(url).toContain('?s=');
 
   await page.goto(url);
   await expect(page.locator('#screen-results')).toBeVisible();
   await expect(page.locator('#score-value')).toHaveText(score);
+  const after = await page.evaluate(() => ({
+    rankOrder: window.__AI_EXPOSURE_APP__.state.rankOrder.slice(),
+    enabled: Array.from(window.__AI_EXPOSURE_APP__.state.activityEnabled.entries())
+  }));
+  expect(after.rankOrder).toEqual(before.rankOrder);
+  expect(after.enabled).toEqual(before.enabled);
 
   await page.locator('#results-back').click();
   await expect(page.locator('#screen-activities')).toBeVisible();
-  await expect(
-    page.locator(`#activity-list li[data-dwa="${firstDwa}"] input[data-enabled]`)
-  ).not.toBeChecked();
-  await expect(
-    page.locator(`#activity-list li[data-dwa="${secondDwa}"] input[data-rank]`)
-  ).toHaveValue('1');
+  const checked = await page.locator('#activity-list input[data-enabled]:checked').count();
+  expect(checked).toBe(before.enabled.filter(([, value]) => value).length);
 });
