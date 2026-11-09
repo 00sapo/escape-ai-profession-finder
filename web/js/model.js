@@ -23,6 +23,7 @@
     refineIterations: 240,
     learningRate: 0.7,
     titleWeight: 0.3,
+    titlePrior: 20,
     resamples: 24,
     bootstrapShare: 0.8
   };
@@ -340,7 +341,23 @@
       combined[o] = (1 - weight) * scored.similarity[o] + weight * title;
     }
     scored.combinedSimilarity = combined;
+    scored.titleSimilarity = titleSimilarity || null;
     scored.titleWeight = weight;
+  }
+
+  /* The title similarity also acts as a prior on the blend weights. A
+   * title-dissimilar occupation gets a negative linear term, so the optimizer
+   * can lower its weight without a hard exclusion. The term is zero when the
+   * title matches and equals -titlePrior when the title is unrelated. */
+  function titlePriorGradient(scored, titlePrior) {
+    if (!scored.titleSimilarity || !titlePrior) {
+      return null;
+    }
+    var prior = new Float64Array(scored.titleSimilarity.length);
+    for (var o = 0; o < prior.length; o += 1) {
+      prior[o] = titlePrior * (scored.titleSimilarity[o] - 1);
+    }
+    return prior;
   }
 
   /* Occupations that the caller forbids as candidates. The validation harness
@@ -416,7 +433,7 @@
    * the weights non-negative and summing to one, so no projection is needed.
    * Each evidence term enters the gradient with its frequency weight, which is
    * what makes a frequent activity count more than a rare one. */
-  function exponentiatedGradient(index, evidence, support, weights, iterations, learningRate, slotTable) {
+  function exponentiatedGradient(index, evidence, support, weights, iterations, learningRate, slotTable, prior) {
     var weighted = weightedEvidence(evidence);
     var nPerformed = weighted.performed.length;
     var nDenied = weighted.denied.length;
@@ -477,6 +494,11 @@
           if (slot >= 0) {
             gradient[slot] += weight;
           }
+        }
+      }
+      if (prior) {
+        for (i = 0; i < support.length; i += 1) {
+          gradient[i] += prior[support[i]];
         }
       }
       for (i = 0; i < gradient.length; i += 1) {
@@ -564,8 +586,10 @@
     var scored = scoreOccupations(index, evidence);
     scored.exclude = excludedMask(index, evidence.exclude);
     applyTitleFusion(scored, evidence.titleSimilarity, settings.titleWeight);
+    var prior = titlePriorGradient(scored, settings.titlePrior);
     var exact = exactOccupation(index, evidence, scored.exclude);
-    if (exact >= 0) {
+    var exactTitle = exact >= 0 && scored.titleSimilarity ? scored.titleSimilarity[exact] : 1;
+    if (exact >= 0 && exactTitle >= 0.999) {
       var result = summarize(index, evidence, scored, [exact], new Float64Array([1]));
       result.candidates = [exact];
       result.elapsedMs = Math.round(now() - started);
@@ -581,7 +605,7 @@
 
     var support = candidates.slice();
     var weights = new Float64Array(support.length).fill(1 / support.length);
-    exponentiatedGradient(index, evidence, support, weights, settings.iterations, settings.learningRate, slotTable);
+    exponentiatedGradient(index, evidence, support, weights, settings.iterations, settings.learningRate, slotTable, prior);
 
     /* Sparsify: keep the smallest support that carries the bulk of the mass. */
     var order = [];
@@ -625,7 +649,8 @@
       trimmedWeights,
       settings.refineIterations,
       settings.learningRate,
-      slotTable
+      slotTable,
+      prior
     );
 
     var result = summarize(index, evidence, scored, trimmedSupport, trimmedWeights);
@@ -710,7 +735,8 @@
           performedWeights: performed.weights,
           deniedWeights: denied.weights,
           priority: weighted.priority,
-          exclude: weighted.exclude
+          exclude: weighted.exclude,
+          titleSimilarity: weighted.titleSimilarity
         },
         Object.assign({}, settings, { resamples: 0 })
       );

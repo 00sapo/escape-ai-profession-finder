@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /*
- * Guards the fuzzy title similarity and its effect on the ranking.
+ * Guards the fuzzy title similarity, the ranking fusion, and the title prior.
  *
- * The check uses two occupations with overlapping activities and different
- * titles. It fits the activity model, then the title-aware model. The title
- * term must lower the similarity of the other occupation, raise the selected
- * one, and leave the gap estimate unchanged.
+ * The check uses one occupation's full activity set with another occupation's
+ * title. The activity evidence alone selects the true occupation. The title
+ * prior must lower that occupation's weight, raise the title-matching
+ * occupation, and move the gap estimate.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,6 +20,8 @@ const DATASET = path.join(ROOT, 'data', 'dist', 'dataset.json.gz');
 const MIN_DROP = 0.1;
 const MIN_TYPO = 0.8;
 const MAX_UNRELATED = 0.05;
+const MIN_SELF_WEIGHT = 0.3;
+const MIN_GAP_DROP = 0.5;
 
 function loadContext() {
   const bundle = JSON.parse(zlib.gunzipSync(fs.readFileSync(DATASET)).toString('utf8'));
@@ -35,6 +37,11 @@ function findTitle(bundle, title) {
   return bundle.occupations.findIndex((entry) => entry.t === title);
 }
 
+function weightOf(fit, occupation) {
+  const at = fit.support.indexOf(occupation);
+  return at < 0 ? 0 : fit.weights[at];
+}
+
 function main() {
   const { bundle, fuzzy, model } = loadContext();
   const index = model.buildIndex(bundle);
@@ -44,23 +51,24 @@ function main() {
     throw new Error('title check could not find the reference occupations');
   }
 
-  const occupation = bundle.occupations[selfIndex];
-  const performed = Int32Array.from(occupation.dwa.slice(0, 10));
+  const reference = bundle.occupations[selfIndex];
+  const evidenceOccupation = bundle.occupations[otherIndex];
   const evidence = {
-    performed,
+    performed: Int32Array.from(evidenceOccupation.dwa),
     denied: new Int32Array(0),
-    priority: Int32Array.from(occupation.dwa.slice(0, 10)),
+    priority: Int32Array.from(evidenceOccupation.dwa),
     priorityImportance: bundle.priorityImportance
   };
   const titleSimilarity = new Float64Array(bundle.occupations.length);
   for (let o = 0; o < bundle.occupations.length; o += 1) {
-    titleSimilarity[o] = fuzzy.similarity(occupation.t, bundle.occupations[o].t);
+    titleSimilarity[o] = fuzzy.similarity(reference.t, bundle.occupations[o].t);
   }
 
   const parameters = {
     maxSupport: 6,
     learningRate: 1,
-    titleWeight: model.DEFAULTS.titleWeight
+    titleWeight: model.DEFAULTS.titleWeight,
+    titlePrior: model.DEFAULTS.titlePrior
   };
   const plain = model.fitBlendWeighted(index, evidence, parameters);
   const titled = model.fitBlendWeighted(
@@ -71,12 +79,13 @@ function main() {
 
   const unrelated = fuzzy.similarity('Recercatore in informatica', 'Sociologo');
   const typo = fuzzy.similarity('Recercatore in informatica', 'Ricercatore in informatica');
-  const symmetric = fuzzy.similarity(occupation.t, bundle.occupations[otherIndex].t);
-  const reverse = fuzzy.similarity(bundle.occupations[otherIndex].t, occupation.t);
+  const symmetric = fuzzy.similarity(reference.t, evidenceOccupation.t);
+  const reverse = fuzzy.similarity(evidenceOccupation.t, reference.t);
   const weight = model.DEFAULTS.titleWeight;
   const expected =
     (1 - weight) * plain.similarity[otherIndex] + weight * titleSimilarity[otherIndex];
-  const drop = plain.similarity[otherIndex] - titled.similarity[otherIndex];
+  const drop = weightOf(plain, otherIndex) - weightOf(titled, otherIndex);
+  const gapDrop = plain.gap - titled.gap;
 
   const failures = [];
   if (unrelated > MAX_UNRELATED) {
@@ -89,16 +98,16 @@ function main() {
     failures.push('title similarity is not symmetric');
   }
   if (drop < MIN_DROP) {
-    failures.push(`title drop ${drop.toFixed(3)} below ${MIN_DROP}`);
+    failures.push(`title weight drop ${drop.toFixed(3)} below ${MIN_DROP}`);
   }
-  if (titled.similarity[selfIndex] < plain.similarity[selfIndex]) {
-    failures.push('the selected title lowered the selected occupation');
+  if (weightOf(titled, selfIndex) < MIN_SELF_WEIGHT) {
+    failures.push(`title-matching weight ${weightOf(titled, selfIndex).toFixed(3)} below ${MIN_SELF_WEIGHT}`);
+  }
+  if (gapDrop < MIN_GAP_DROP) {
+    failures.push(`gap drop ${gapDrop.toFixed(3)} below ${MIN_GAP_DROP}`);
   }
   if (Math.abs(titled.similarity[otherIndex] - expected) > 1e-12) {
     failures.push('combined similarity does not match the fusion formula');
-  }
-  if (Math.abs(titled.gap - plain.gap) > 1e-12) {
-    failures.push('title similarity changed the gap estimate');
   }
   if (titled.activitySimilarity[otherIndex] !== plain.similarity[otherIndex]) {
     failures.push('title similarity changed the activity similarity');
@@ -106,12 +115,11 @@ function main() {
 
   console.log(
     `unrelated ${unrelated.toFixed(3)}, typo ${typo.toFixed(3)}, ` +
-      `title ${symmetric.toFixed(3)}, drop ${drop.toFixed(3)}`
+      `title ${symmetric.toFixed(3)}, weight drop ${drop.toFixed(3)}`
   );
   console.log(
-    `plain similarity ${plain.similarity[otherIndex].toFixed(3)}, ` +
-      `titled similarity ${titled.similarity[otherIndex].toFixed(3)}, ` +
-      `gap ${plain.gap.toFixed(4)}`
+    `plain gap ${plain.gap.toFixed(4)}, titled gap ${titled.gap.toFixed(4)}, ` +
+      `title-matching weight ${weightOf(titled, selfIndex).toFixed(3)}`
   );
 
   if (failures.length > 0) {
@@ -120,7 +128,7 @@ function main() {
     }
     process.exit(1);
   }
-  console.log('PASS title similarity and ranking effect');
+  console.log('PASS title similarity, ranking fusion, and title prior');
 }
 
 main();

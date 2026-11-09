@@ -19,7 +19,8 @@
     maxSupport: 6,
     learningRate: 1,
     stopStability: 0.632,
-    titleWeight: 0.3
+    titleWeight: 0.3,
+    titlePrior: 20
   };
 
   var index = model.buildIndex(dataset);

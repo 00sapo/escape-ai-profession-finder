@@ -80,11 +80,12 @@ the blend with exponentiated gradient ascent on the simplex. It then keeps the
 smallest support that carries most of the weight. The order of the declared
 activities supplies the evidence weights through the O*NET importance table.
 
-The ranking also blends a fuzzy title similarity with a weight of 0.3. The
-matcher compares the chosen occupation titles with each occupation title. It
-folds case and diacritics, drops common words, and matches tokens by character
-bigrams. The title term changes the ranking and the displayed similarity. It
-does not change the blend weights, the support, or the gap estimate.
+The ranking blends a fuzzy title similarity with a weight of 0.3. The matcher
+compares the chosen occupation titles with each occupation title. It folds case
+and diacritics, drops common words, and matches tokens by character bigrams.
+The blend also uses the title as a prior with strength 20. A title-dissimilar
+occupation gets a negative linear term, so its weight falls and the gap estimate
+changes. The prior does not hard-exclude occupations.
 
 The model code is `web/js/model.js`. The technical notice at
 `web/technical-notice.html` gives the equations, the constants, the validation
