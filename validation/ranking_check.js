@@ -63,23 +63,16 @@ function simulate(model, perceived) {
       break;
     }
     const sorted = question.items.slice().sort((a, b) => position.get(a) - position.get(b));
-    if (question.type === 'group') {
-      const m = sorted.length;
-      const cut1 = Math.ceil(m / 3);
-      const cut2 = Math.ceil((2 * m) / 3);
-      const ok = Rank.answerGroup(model, {
-        high: sorted.slice(0, cut1),
-        normal: sorted.slice(cut1, cut2),
-        low: sorted.slice(cut2)
-      });
-      if (!ok) {
-        throw new Error('answerGroup rejected a valid partition');
-      }
-    } else {
-      const ok = Rank.answerOrder(model, sorted);
-      if (!ok) {
-        throw new Error('answerOrder rejected a valid order');
-      }
+    const m = sorted.length;
+    const cut1 = Math.ceil(m / 3);
+    const cut2 = Math.ceil((2 * m) / 3);
+    const ok = Rank.answerGroup(model, {
+      high: sorted.slice(0, cut1),
+      normal: sorted.slice(cut1, cut2),
+      low: sorted.slice(cut2)
+    });
+    if (!ok) {
+      throw new Error('answerGroup rejected a valid partition');
     }
   }
   if (!Rank.isDone(model)) {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { reachActivities, selectActivities, reachRank, reachResults } from './flow.js';
+import { reachActivities, selectActivities, reachResults } from './flow.js';
 
 test('the score is the gap and the histogram marks one bin between the axes', async ({ page }) => {
   await reachResults(page);
@@ -29,7 +29,7 @@ test('the score is the gap and the histogram marks one bin between the axes', as
   await expect(resilienceFilter).toContainText(/resilienza/i);
 });
 
-test('moving a rank row changes the order and the selection stays', async ({ page }) => {
+test('the activity selection survives going back', async ({ page }) => {
   await reachActivities(page);
   const first = await page.locator('#activity-list li[data-dwa]').first().getAttribute('data-dwa');
   await page.locator(`#activity-list li[data-dwa="${first}"] input[data-enabled]`).check();
@@ -43,17 +43,7 @@ test('moving a rank row changes the order and the selection stays', async ({ pag
 
   await selectActivities(page, 4);
   await page.locator('#activities-continue').click();
-  await expect(page.locator('#screen-rank')).toBeVisible();
-
-  const rows = page.locator('#rank-list li[data-dwa]');
-  const before = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
-  await rows.first().locator('[data-move="down"]').click();
-  const after = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
-  expect(after[0]).toBe(before[1]);
-  expect(after[1]).toBe(before[0]);
-
-  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   const rankOrder = await page.evaluate(() => window.__AI_EXPOSURE_APP__.state.rankOrder.slice());
-  expect(rankOrder.slice(0, 2)).toEqual([Number(after[0]), Number(after[1])]);
+  expect(rankOrder.length).toBe(4);
 });

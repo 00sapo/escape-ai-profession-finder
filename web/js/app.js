@@ -44,7 +44,6 @@
     rankModel: null,
     rankQuestion: null,
     rankBuckets: null,
-    rankLeafOrder: null,
     rankOrder: null
   };
 
@@ -210,9 +209,9 @@
       'activities-count',
       'activities-back',
       'activities-continue',
-      'rank-list',
       'rank-board',
       'rank-question',
+      'rank-title',
       'rank-status',
       'rank-back',
       'rank-confirm',
@@ -395,7 +394,6 @@
     state.rankOrder = null;
     state.rankQuestion = null;
     state.rankBuckets = null;
-    state.rankLeafOrder = null;
     state.rankModel = selected.length > 0 ? ranker.create(selected) : null;
   }
 
@@ -580,22 +578,6 @@
     elements['activities-continue'].disabled = selected === 0;
   }
 
-  function rankRow(dwaIndex) {
-    var row = document.createElement('li');
-    row.className = 'rank-item';
-    row.setAttribute('data-dwa', String(dwaIndex));
-    var label = element('span', 'rank-label');
-    var name = element('span', 'activity-name rank-name', activityLabel(dwaIndex));
-    name.title = activityLabel(dwaIndex);
-    label.appendChild(name);
-    var moves = element('div', 'activity-moves rank-moves');
-    moves.appendChild(moveButton('up', t('activity.moveUp'), false));
-    moves.appendChild(moveButton('down', t('activity.moveDown'), false));
-    row.appendChild(label);
-    row.appendChild(moves);
-    return row;
-  }
-
   function bucketCard(dwaIndex, bucketKey) {
     var row = document.createElement('li');
     row.className = 'bucket-card';
@@ -620,26 +602,32 @@
     return row;
   }
 
+  function rankTitle(bucket) {
+    if (bucket === 'high') {
+      return t('rank.titleHigh');
+    }
+    if (bucket === 'normal') {
+      return t('rank.titleNormal');
+    }
+    if (bucket === 'low') {
+      return t('rank.titleLow');
+    }
+    return t('rank.title');
+  }
+
   function renderRankScreen() {
     var question = state.rankQuestion;
     if (!question) {
       return;
     }
     var progress = ranker.progress(state.rankModel);
+    elements['rank-title'].textContent = rankTitle(question.bucket);
     elements['rank-question'].textContent = t('rank.question', {
-      number: i18n.number(progress.answered + 1, 0)
+      number: i18n.number(question.review ? progress.reviewIndex + 1 : progress.answered + 1, 0)
     });
-    if (question.type === 'group') {
-      elements['rank-board'].hidden = false;
-      elements['rank-list'].hidden = true;
-      elements['rank-status'].textContent = t('rank.groupHint');
-      renderRankBoard();
-    } else {
-      elements['rank-board'].hidden = true;
-      elements['rank-list'].hidden = false;
-      elements['rank-status'].textContent = t('rank.orderHint');
-      renderRankOrder();
-    }
+    elements['rank-status'].textContent = question.review ? t('rank.reviewHint') : t('rank.groupHint');
+    elements['rank-board'].hidden = false;
+    renderRankBoard();
     updateRankConfirm();
   }
 
@@ -670,22 +658,9 @@
     });
   }
 
-  function renderRankOrder() {
-    var list = elements['rank-list'];
-    list.textContent = '';
-    state.rankLeafOrder.forEach(function (dwaIndex) {
-      list.appendChild(rankRow(dwaIndex));
-    });
-    updateRankMoveButtons();
-  }
-
   function updateRankConfirm() {
-    if (!state.rankQuestion) {
+    if (!state.rankQuestion || !state.rankBuckets) {
       elements['rank-confirm'].disabled = true;
-      return;
-    }
-    if (state.rankQuestion.type === 'order') {
-      elements['rank-confirm'].disabled = false;
       return;
     }
     var nonEmpty = 0;
@@ -695,58 +670,6 @@
       }
     });
     elements['rank-confirm'].disabled = nonEmpty < 2;
-  }
-
-  function updateRankMoveButtons() {
-    var rows = elements['rank-list'].querySelectorAll('li[data-dwa]');
-    rows.forEach(function (row, position) {
-      row.querySelector('button[data-move="up"]').disabled = position === 0;
-      row.querySelector('button[data-move="down"]').disabled = position === rows.length - 1;
-    });
-  }
-
-  function syncLeafOrder() {
-    state.rankLeafOrder = Array.prototype.map.call(
-      elements['rank-list'].querySelectorAll('li[data-dwa]'),
-      function (row) {
-        return Number(row.getAttribute('data-dwa'));
-      }
-    );
-  }
-
-  function moveRankRow(dwaIndex, direction) {
-    var list = elements['rank-list'];
-    var rows = Array.prototype.slice.call(list.querySelectorAll('li[data-dwa]'));
-    var position = -1;
-    for (var i = 0; i < rows.length; i += 1) {
-      if (Number(rows[i].getAttribute('data-dwa')) === dwaIndex) {
-        position = i;
-        break;
-      }
-    }
-    if (position < 0) {
-      return;
-    }
-    var target = position + direction;
-    if (target < 0 || target >= rows.length) {
-      return;
-    }
-    if (direction < 0) {
-      list.insertBefore(rows[position], rows[target]);
-    } else {
-      list.insertBefore(rows[target], rows[position]);
-    }
-    updateRankMoveButtons();
-    syncLeafOrder();
-    var moved = list.querySelector('li[data-dwa="' + dwaIndex + '"]');
-    var wanted = direction < 0 ? 'up' : 'down';
-    var focusButton = moved.querySelector('button[data-move="' + wanted + '"]');
-    if (focusButton.disabled) {
-      focusButton = moved.querySelector('button[data-move="' + (wanted === 'up' ? 'down' : 'up') + '"]');
-    }
-    if (focusButton && !focusButton.disabled) {
-      focusButton.focus();
-    }
   }
 
   function moveBucketCard(dwaIndex, direction) {
@@ -795,12 +718,14 @@
       showOccupationResults();
       return;
     }
-    if (question.type === 'group') {
-      state.rankBuckets = { high: [], normal: question.items.slice(), low: [] };
-      state.rankLeafOrder = null;
+    if (question.review) {
+      state.rankBuckets = {
+        high: question.saved.high.slice(),
+        normal: question.saved.normal.slice(),
+        low: question.saved.low.slice()
+      };
     } else {
-      state.rankBuckets = null;
-      state.rankLeafOrder = question.items.slice();
+      state.rankBuckets = { high: [], normal: question.items.slice(), low: [] };
     }
     renderRankScreen();
     setScreen('rank');
@@ -821,6 +746,10 @@
       return;
     }
     if (ranker.isDone(state.rankModel)) {
+      if (ranker.review(state.rankModel)) {
+        startQuestion();
+        return;
+      }
       state.rankOrder = ranker.order(state.rankModel);
       showOccupationResults();
       return;
@@ -833,24 +762,11 @@
     if (!question || !state.rankModel) {
       return;
     }
-    if (question.type === 'group') {
-      if (!ranker.answerGroup(state.rankModel, state.rankBuckets)) {
-        return;
-      }
-    } else {
-      syncLeafOrder();
-      if (!ranker.answerOrder(state.rankModel, state.rankLeafOrder)) {
-        return;
-      }
+    if (!ranker.answerGroup(state.rankModel, state.rankBuckets)) {
+      return;
     }
     state.rankQuestion = null;
     state.rankBuckets = null;
-    state.rankLeafOrder = null;
-    if (ranker.isDone(state.rankModel)) {
-      state.rankOrder = ranker.order(state.rankModel);
-      showOccupationResults();
-      return;
-    }
     startQuestion();
   }
 
@@ -923,17 +839,6 @@
   }
 
   /* --- Ranking controls ----------------------------------------------- */
-
-  function moveButton(direction, label, disabled) {
-    var button = element('button', 'move-button', direction === 'up' ? '↑' : '↓');
-    button.type = 'button';
-    button.setAttribute('data-move', direction);
-    button.disabled = disabled;
-    button.appendChild(element('span', 'visually-hidden', ' ' + label));
-    return button;
-  }
-
-
 
   function openInfo(dwaIndex) {
     var entry = dataset.dwas[dwaIndex];
@@ -1355,13 +1260,11 @@
     state.rankModel = null;
     state.rankQuestion = null;
     state.rankBuckets = null;
-    state.rankLeafOrder = null;
     state.rankOrder = null;
     elements['occupation-search'].value = '';
     elements['occupation-results'].textContent = '';
     elements['selected-occupations'].textContent = '';
     elements['activity-list'].textContent = '';
-    elements['rank-list'].textContent = '';
     elements['rank-board'].textContent = '';
     elements['rank-question'].textContent = '';
     elements['rank-status'].textContent = '';
@@ -1476,21 +1379,6 @@
         Number(card.getAttribute('data-dwa')),
         move.getAttribute('data-bucket-move')
       );
-    });
-    elements['rank-list'].addEventListener('click', function (event) {
-      var target = event.target;
-      if (!target.closest) {
-        return;
-      }
-      var move = target.closest('[data-move]');
-      if (!move || move.disabled) {
-        return;
-      }
-      var row = move.closest('li[data-dwa]');
-      if (!row) {
-        return;
-      }
-      moveRankRow(Number(row.getAttribute('data-dwa')), move.getAttribute('data-move') === 'up' ? -1 : 1);
     });
     elements['rank-back'].addEventListener('click', function () {
       renderActivityScreen();
@@ -1696,7 +1584,6 @@
     state.rankModel = null;
     state.rankQuestion = null;
     state.rankBuckets = null;
-    state.rankLeafOrder = null;
     state.rankOrder = performed.slice();
     renderOccupationScreen();
     if (performed.length === 0) {

@@ -6,9 +6,11 @@ The site shows the OECD AI exposure of an occupation. You search for one or more
 occupations. You select the activities that you perform. The site then asks you
 to split the activities into frequency groups: more frequent, normal, and less
 frequent. It repeats the split for each group until a group has four activities
-or fewer. The order is deterministic and transitive. The site shows the OECD AI
-Capability Gap of that profile. A low gap means low resilience and high
-exposure. A high gap means high resilience.
+or fewer. A group of four or fewer activities keeps its current order. The
+order is deterministic and transitive. You can review the saved groups from the
+results screen. The site shows the OECD AI Capability Gap of that profile. A
+low gap means low resilience and high exposure. A high gap means high
+resilience.
 
 The site runs in the browser. No data leaves your device.
 

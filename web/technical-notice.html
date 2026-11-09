@@ -88,9 +88,10 @@
   <p>Uncertainty is the sample standard deviation of 24 bootstrap refits. Each refit draws <code>max(1, round(0.8 |P|))</code> performed activities and <code>max(0, round(0.8 |Q|))</code> denied activities with replacement. Each drawn activity carries its weight. The refit repeats the full estimation.</p>
 
   <h2 id="ranking">Activity ranking questionnaire</h2>
-  <p>The user selects the activities that they perform. The page then asks the user to split a group into three ordered buckets: more frequent, normal, and less frequent. The page repeats the split for every bucket with more than four activities. A bucket of four or fewer activities is ordered directly.</p>
+  <p>The user selects the activities that they perform. The page then asks the user to split a group into three ordered buckets: more frequent, normal, and less frequent. The page repeats the split for every bucket with more than four activities. A bucket of four or fewer activities needs no question and keeps its bucket order.</p>
   <p>The order is deterministic. The final order is the more frequent bucket, then the normal bucket, then the less frequent bucket. The same rule applies inside every bucket. Transitivity holds by construction: if A is in a higher bucket than B, and B is in a higher bucket than C, then A is above C.</p>
-  <p>A group above four activities must be split into at least two non-empty buckets. Otherwise the group does not shrink and the page disables the Confirm button. The terminal groups have at most four activities and are ordered by the user.</p>
+  <p>A group above four activities must be split into at least two non-empty buckets. Otherwise the group does not shrink and the page disables the Confirm button.</p>
+  <p>A completed tree can be reviewed. The page shows every saved group question again with its saved buckets. A changed split rebuilds only that subtree.</p>
   <p>The validation harness creates a true order, shuffles consecutive blocks of three or four activities, simulates the answers from the perturbed order, and checks that the page returns the perturbed order. The maximum displacement from the true order stays at three positions. The check runs with <code>npm run check:ranking</code>.</p>
   <p>The order feeds the priority table described below. This step has no probabilistic model and no uncertainty estimate.</p>
 

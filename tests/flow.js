@@ -45,26 +45,20 @@ export async function selectActivities(page, count = 4) {
   await expect(page.locator('#activities-continue')).toBeEnabled();
 }
 
-export async function reachRank(page, count = 4) {
+/* Four or fewer selected activities need no questionnaire: the grouping tree
+ * resolves them immediately. */
+export async function reachResults(page) {
+  await reachActivities(page);
+  await selectActivities(page, 4);
+  await page.locator('#activities-continue').click();
+  await expect(page.locator('#screen-results')).toBeVisible();
+}
+
+/* Ten activities produce a group question, so the bucket board is visible. */
+export async function reachGroup(page, count = 10) {
   await reachActivities(page);
   await selectActivities(page, count);
   await page.locator('#activities-continue').click();
   await expect(page.locator('#screen-rank')).toBeVisible();
-  await expect(page.locator('#rank-list li[data-dwa]').first()).toBeVisible();
-}
-
-export async function answerRanking(page, max = 12) {
-  for (let step = 0; step < max; step += 1) {
-    if (await page.locator('#screen-results').isVisible()) {
-      return;
-    }
-    await expect(page.locator('#screen-rank')).toBeVisible();
-    await page.locator('#rank-confirm').click();
-  }
-  await expect(page.locator('#screen-results')).toBeVisible();
-}
-
-export async function reachResults(page) {
-  await reachRank(page);
-  await answerRanking(page);
+  await expect(page.locator('#rank-board')).toBeVisible();
 }

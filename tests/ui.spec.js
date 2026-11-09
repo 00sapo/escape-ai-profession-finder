@@ -9,8 +9,6 @@ import {
   selectOccupation,
   reachActivities,
   selectActivities,
-  reachRank,
-  answerRanking,
   reachResults
 } from './flow.js';
 
@@ -291,9 +289,6 @@ test('occupation flow is usable with clicks only and the layout holds', async ({
   await selectActivities(page, 4);
   await expect(page.locator('#activities-continue')).toBeEnabled();
   await page.locator('#activities-continue').click();
-  await expect(page.locator('#screen-rank')).toBeVisible();
-  await assertLayoutIsSound(page);
-  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await assertLayoutIsSound(page);
   expect(await axeSerious(page)).toEqual([]);
@@ -426,43 +421,6 @@ test('the occupation detail lists the nine domains', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
-test('the ranking order changes the estimate', async ({ page }) => {
-  async function run(reverse) {
-    await startOccupations(page);
-    await selectOccupation(page, 'chief');
-    await page.locator('#occupations-continue').click();
-    await expect(page.locator('#screen-activities')).toBeVisible();
-    await selectActivities(page, 4);
-    await page.locator('#activities-continue').click();
-    await expect(page.locator('#screen-rank')).toBeVisible();
-
-    const rows = page.locator('#rank-list li[data-dwa]');
-    const total = await rows.count();
-    expect(total).toBe(4);
-    const order = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
-    if (reverse) {
-      const reversed = order.slice().reverse();
-      for (let index = 0; index < reversed.length - 1; index += 1) {
-        const code = reversed[index];
-        for (let step = 0; step < reversed.length - 1 - index; step += 1) {
-          await page.locator(`#rank-list li[data-dwa="${code}"] [data-move="up"]`).click();
-        }
-      }
-    }
-    const answered = await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-dwa')));
-    await page.locator('#rank-confirm').click();
-    await expect(page.locator('#screen-results')).toBeVisible();
-    const gap = await page.evaluate(() => window.__AI_EXPOSURE_APP__.state.fit.gap);
-    return { gap, order, answered };
-  }
-
-  const straight = await run(false);
-  const reversed = await run(true);
-  expect(reversed.answered).toEqual(straight.answered.slice().reverse());
-  expect(reversed.gap, 'reversing the inferred ranking should change the estimated gap').not.toBe(straight.gap);
-  await expect(page.locator('#score-value')).toHaveText(/\d+[.,]\d\d/);
-});
-
 test('filters and CSV export work', async ({ page }) => {
   await reachResults(page);
 
@@ -500,7 +458,6 @@ test('the page runs from disk with no network request', async ({ page }, testInf
   await page.locator('#occupations-continue').click();
   await selectActivities(page, 4);
   await page.locator('#activities-continue').click();
-  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await expect(page.locator('#score-value')).toBeVisible();
   expect(requests).toEqual([]);
@@ -624,7 +581,6 @@ test('switches language without losing the flow', async ({ page }) => {
   await page.locator('#occupations-continue').click();
   await selectActivities(page, 4);
   await page.locator('#activities-continue').click();
-  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await expect(page.locator('#score-scale')).toContainText(/less resilient/i);
   await expect(page.locator('#results-legend')).toContainText('lower');
@@ -655,9 +611,6 @@ test('no screen renders a raw translation key', async ({ page }) => {
 
   await selectActivities(page, 4);
   await page.locator('#activities-continue').click();
-  await expect(page.locator('#screen-rank')).toBeVisible();
-  await assertNoRawTranslationKeys(page);
-  await page.locator('#rank-confirm').click();
   await expect(page.locator('#screen-results')).toBeVisible();
   await assertNoRawTranslationKeys(page);
 
