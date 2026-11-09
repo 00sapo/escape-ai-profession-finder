@@ -20,31 +20,43 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 const DATASET = path.join(ROOT, 'data', 'dist', 'dataset.json.gz');
 const MODEL = path.join(ROOT, 'web', 'js', 'model.js');
+const FUZZY = path.join(ROOT, 'web', 'js', 'fuzzy.js');
+const TITLE = process.argv.includes('--title');
 const IGNORE_DENIED = process.argv.includes('--ignore-denied');
+const MODE = [TITLE ? 'title' : '', IGNORE_DENIED ? 'ignore_denied' : '']
+  .filter(Boolean)
+  .join('_');
 const REPORT = path.join(
   ROOT,
   'data',
   'dist',
-  IGNORE_DENIED ? 'validation_report_ignore_denied.json' : 'validation_report.json'
+  MODE ? `validation_report_${MODE}.json` : 'validation_report.json'
 );
 
 const THRESHOLDS = { mae: 0.05, within: 0.65, tolerance: 0.05 };
 const SAMPLE_SIZES = [4, 5, 6, 8, 10, 12, 15, 20, 25];
 const NOISE_SHARE = 0.15;
+const TITLE_PRIORS = [1, 5, 10, 20];
 const GRID = [];
 for (const maxSupport of [4, 6, 8, 10]) {
   for (const learningRate of [0.4, 0.7, 1.0]) {
-    GRID.push({ maxSupport, learningRate });
+    if (TITLE) {
+      for (const titlePrior of TITLE_PRIORS) {
+        GRID.push({ maxSupport, learningRate, titlePrior });
+      }
+    } else {
+      GRID.push({ maxSupport, learningRate });
+    }
   }
 }
 
 function loadModel() {
-  const source = fs.readFileSync(MODEL, 'utf8');
-  new Function(source).call(globalThis);
-  if (!globalThis.AIExposureModel) {
-    throw new Error('model.js did not publish AIExposureModel');
+  new Function(fs.readFileSync(FUZZY, 'utf8')).call(globalThis);
+  new Function(fs.readFileSync(MODEL, 'utf8')).call(globalThis);
+  if (!globalThis.AIExposureModel || !globalThis.AIExposureFuzzy) {
+    throw new Error('model.js or fuzzy.js did not publish its API');
   }
-  return globalThis.AIExposureModel;
+  return { model: globalThis.AIExposureModel, fuzzy: globalThis.AIExposureFuzzy };
 }
 
 function mulberry32(seed) {
@@ -104,6 +116,9 @@ function evaluate(index, model, occupations, options) {
   const rows = [];
   for (const occupation of occupations) {
     const list = index.occDwa[occupation];
+    const titleSimilarity = options.titleSimilarity
+      ? options.titleSimilarity(occupation)
+      : null;
     let previous = null;
     for (const size of SAMPLE_SIZES) {
       if (list.length < size) {
@@ -126,15 +141,15 @@ function evaluate(index, model, occupations, options) {
       }
       const deniedCount = 2 + Math.floor(random() * 2);
       const denied = sampleDenied(index, occupation, performed, deniedCount, random);
-      const fit = model.fitBlend(
-        index,
-        {
-          performed,
-          denied: options.ignoreDenied ? new Int32Array(0) : denied,
-          exclude: [occupation]
-        },
-        options.parameters
-      );
+      const evidence = {
+        performed,
+        denied: options.ignoreDenied ? new Int32Array(0) : denied,
+        exclude: [occupation]
+      };
+      if (titleSimilarity) {
+        evidence.titleSimilarity = titleSimilarity;
+      }
+      const fit = model.fitBlend(index, evidence, options.parameters);
       const estimate = fit.exposure;
       const truth = index.exposure[occupation];
       rows.push({
@@ -196,10 +211,16 @@ function stabilityThreshold(table, floor) {
   return Math.round(values[Math.min(index, values.length - 1)] * 1000) / 1000;
 }
 
-function tune(index, model, tuning, seed, ignoreDenied) {
+function tune(index, model, tuning, seed, ignoreDenied, titleSimilarity) {
   const results = [];
   for (const parameters of GRID) {
-    const rows = evaluate(index, model, tuning, { seed, noise: 0, parameters, ignoreDenied });
+    const rows = evaluate(index, model, tuning, {
+      seed,
+      noise: 0,
+      parameters,
+      ignoreDenied,
+      titleSimilarity
+    });
     const table = summarize(rows);
     const target = table.filter((row) => row.size === 15 || row.size === 20);
     const mae = target.reduce((sum, row) => sum + row.mae, 0) / target.length;
@@ -216,9 +237,24 @@ function tune(index, model, tuning, seed, ignoreDenied) {
 }
 
 function main() {
-  const model = loadModel();
+  const { model, fuzzy } = loadModel();
   const bundle = JSON.parse(zlib.gunzipSync(fs.readFileSync(DATASET)).toString('utf8'));
   const index = model.buildIndex(bundle);
+
+  const titleCache = new Map();
+  function titleSimilarityFor(occupation) {
+    if (titleCache.has(occupation)) {
+      return titleCache.get(occupation);
+    }
+    const reference = bundle.occupations[occupation].t;
+    const values = new Float64Array(bundle.occupations.length);
+    for (let o = 0; o < bundle.occupations.length; o += 1) {
+      values[o] = fuzzy.similarity(reference, bundle.occupations[o].t);
+    }
+    titleCache.set(occupation, values);
+    return values;
+  }
+  const titleOption = TITLE ? titleSimilarityFor : null;
 
   const tuning = [];
   const heldout = [];
@@ -233,9 +269,12 @@ function main() {
 
   console.log(`occupations ${index.nOcc}, activities ${index.nDwa}`);
   console.log(`split: tuning ${tuning.length}, held out ${heldout.length}`);
-  console.log(`mode: ${IGNORE_DENIED ? 'ignore denied activities' : 'use denied activities'}`);
+  console.log(
+    `mode: ${TITLE ? 'title prior' : 'no title'}, ` +
+      `${IGNORE_DENIED ? 'ignore denied activities' : 'use denied activities'}`
+  );
 
-  const grid = tune(index, model, tuning, 1234, IGNORE_DENIED);
+  const grid = tune(index, model, tuning, 1234, IGNORE_DENIED, titleOption);
   const best = grid[0].parameters;
   console.log(`tuned parameters: ${JSON.stringify(best)}`);
   for (const entry of grid.slice(0, 4)) {
@@ -248,13 +287,15 @@ function main() {
     seed: 99,
     noise: 0,
     parameters: best,
-    ignoreDenied: IGNORE_DENIED
+    ignoreDenied: IGNORE_DENIED,
+    titleSimilarity: titleOption
   });
   const heldoutRows = evaluate(index, model, heldout, {
     seed: 2024,
     noise: 0,
     parameters: best,
-    ignoreDenied: IGNORE_DENIED
+    ignoreDenied: IGNORE_DENIED,
+    titleSimilarity: titleOption
   });
   const tuningTable = summarize(tuningRows);
   const heldoutTable = summarize(heldoutRows);
@@ -263,7 +304,8 @@ function main() {
     seed: 7,
     noise: NOISE_SHARE,
     parameters: best,
-    ignoreDenied: IGNORE_DENIED
+    ignoreDenied: IGNORE_DENIED,
+    titleSimilarity: titleOption
   });
   const noisyTable = summarize(noisyRows);
 
@@ -309,6 +351,7 @@ function main() {
   const report = {
     generated: bundle.meta.generated,
     thresholds: THRESHOLDS,
+    title: TITLE,
     ignoreDenied: IGNORE_DENIED,
     split: { tuning: tuning.length, heldout: heldout.length },
     parameters: best,
