@@ -2,7 +2,7 @@
 
 ## What it does
 
-The site shows how AI affects an occupation. You search for one or more
+The site shows the OECD AI exposure of an occupation. You search for one or more
 occupations. You select the activities that you perform. You set their order.
 The site shows the OECD AI Capability Gap of that profile. A low gap means low
 resilience and high exposure. A high gap means high resilience.
@@ -73,6 +73,23 @@ The model represents the declared activities as a weighted blend of O*NET
 occupations. The weights are not negative and their sum is one. Undeclared
 activities count as missing data, and the result is the weighted mean of the
 OECD gaps.
+
+The model smooths each activity probability with a floor of 0.02. It ranks
+occupations by a weighted geometric mean of the activity probabilities. It fits
+the blend with exponentiated gradient ascent on the simplex. It then keeps the
+smallest support that carries most of the weight. The order of the declared
+activities supplies the evidence weights through the O*NET importance table.
+
+The model code is `web/js/model.js`. The technical notice at
+`web/technical-notice.html` gives the equations, the constants, the validation
+protocol, the held-out results, and the limitations.
+
+## Validation
+
+The validation harness samples activities from known occupations and compares
+the estimate with the OECD score. It tunes on 547 occupations and reports on
+332 held-out occupations. The technical notice gives the results and the
+limitations of the protocol.
 
 ## Privacy
 

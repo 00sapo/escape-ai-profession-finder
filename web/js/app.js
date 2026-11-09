@@ -1,5 +1,5 @@
 /*
- * App shell: questionnaire state, suggestion loop, results view, CSV export.
+ * App shell: occupation flow, ordered activity list, results view, CSV export.
  * No network. The dataset is already in memory from data/dataset.js.
  */
 (function () {
@@ -615,7 +615,6 @@
     var fit = model.fitBlendWeighted(index, evidence, TUNING);
     fit.uncertainty = model.bootstrapUncertainty(index, evidence).std;
     state.fit = fit;
-    state.stableRounds = 0;
     renderScore();
     renderRepresentatives(fit);
     state.shown = 0;
@@ -623,7 +622,7 @@
     setScreen('results');
   }
 
-  /* --- Principal activity and disambiguation questionnaire ------------- */
+  /* --- Activity list controls ----------------------------------------- */
 
   function rankInput(position, total) {
     var input = document.createElement('input');
@@ -1169,7 +1168,6 @@
     state.performed.clear();
     state.denied.clear();
     state.fit = null;
-    state.stableRounds = 0;
     state.shown = 0;
     state.origin = 'tree';
     if (elements['activity-info'].open) {

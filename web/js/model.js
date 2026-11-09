@@ -33,12 +33,6 @@
   var FREQUENCY_MIN = 1;
   var FREQUENCY_MAX = 5;
 
-  /* The questionnaire stops once this many occupations remain consistent with
-   * the answers. */
-  var QUESTION_STOP = 10;
-
-  var LOG2 = Math.log(2);
-
   function now() {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
@@ -704,139 +698,16 @@
     return total / 2;
   }
 
-  /* Occupations still consistent with the answers: every performed activity is
-   * present in the occupation and every denied activity is absent. Undeclared
-   * activities stay missing data, so they never remove an occupation. */
-  function consistentCandidates(index, evidence) {
-    var performed = evidence.performed;
-    var denied = evidence.denied;
-    var performedFlag = new Uint8Array(index.nDwa);
-    var deniedFlag = new Uint8Array(index.nDwa);
-    var i;
-    var required = 0;
-    for (i = 0; i < performed.length; i += 1) {
-      if (!performedFlag[performed[i]]) {
-        performedFlag[performed[i]] = 1;
-        required += 1;
-      }
-    }
-    for (i = 0; i < denied.length; i += 1) {
-      deniedFlag[denied[i]] = 1;
-    }
-    var candidates = [];
-    for (var o = 0; o < index.nOcc; o += 1) {
-      var list = index.occDwa[o];
-      var hits = 0;
-      var contradicted = false;
-      for (var k = 0; k < list.length; k += 1) {
-        var dwa = list[k];
-        if (deniedFlag[dwa]) {
-          contradicted = true;
-          break;
-        }
-        if (performedFlag[dwa]) {
-          hits += 1;
-        }
-      }
-      if (!contradicted && hits === required) {
-        candidates.push(o);
-      }
-    }
-    return Int32Array.from(candidates);
-  }
-
-  /* Next question: the unasked activity whose yes/no split of the surviving
-   * occupations has the highest entropy, so an answer removes as much of the
-   * candidate set as possible. Equally informative splits go to the activity
-   * carried by more surviving occupations. Returns -1 when no unasked activity
-   * splits the set. */
-  function nextQuestion(index, candidates, asked) {
-    var n = candidates.length;
-    if (n <= 1) {
-      return -1;
-    }
-    var counts = new Int32Array(index.nDwa);
-    var i;
-    for (i = 0; i < n; i += 1) {
-      var list = index.occDwa[candidates[i]];
-      for (var k = 0; k < list.length; k += 1) {
-        counts[list[k]] += 1;
-      }
-    }
-    var best = -1;
-    var bestGain = -1;
-    var bestYes = -1;
-    for (var d = 0; d < index.nDwa; d += 1) {
-      if (asked && asked[d]) {
-        continue;
-      }
-      var yes = counts[d];
-      if (yes === 0 || yes === n) {
-        continue;
-      }
-      var p = yes / n;
-      var gain = -(p * Math.log(p) + (1 - p) * Math.log(1 - p)) / LOG2;
-      if (gain > bestGain + 1e-12 || (Math.abs(gain - bestGain) <= 1e-12 && yes > bestYes)) {
-        bestGain = gain;
-        bestYes = yes;
-        best = d;
-      }
-    }
-    return best;
-  }
-
-  /* Next question: the activity that splits the current blend mass most evenly
-   * and covers the most weight. */
-  function suggestActivity(index, fit, asked) {
-    var best = -1;
-    var bestScore = -1;
-    var mass = new Float64Array(index.nDwa);
-    var i;
-    for (i = 0; i < fit.support.length; i += 1) {
-      var list = index.occDwa[fit.support[i]];
-      for (var k = 0; k < list.length; k += 1) {
-        mass[list[k]] += fit.weights[i];
-      }
-    }
-    for (var d = 0; d < index.nDwa; d += 1) {
-      if (asked[d] || mass[d] === 0) {
-        continue;
-      }
-      var balance = mass[d] * (1 - mass[d]);
-      if (balance > bestScore) {
-        bestScore = balance;
-        best = d;
-      }
-    }
-    return best;
-  }
-
-  function topSimilarityOrder(scored, count) {
-    var order = [];
-    for (var o = 0; o < scored.similarity.length; o += 1) {
-      order.push(o);
-    }
-    order.sort(function (a, b) {
-      return scored.similarity[b] - scored.similarity[a];
-    });
-    return order.slice(0, count);
-  }
-
   root.AIExposureModel = {
     EPS: EPS,
     DEFAULTS: DEFAULTS,
     FREQUENCY_MIN: FREQUENCY_MIN,
     FREQUENCY_MAX: FREQUENCY_MAX,
-    QUESTION_STOP: QUESTION_STOP,
     buildIndex: buildIndex,
     scoreOccupations: scoreOccupations,
     fitBlend: fitBlend,
     fitBlendWeighted: fitBlendWeighted,
     bootstrapUncertainty: bootstrapUncertainty,
-    stability: stability,
-    consistentCandidates: consistentCandidates,
-    nextQuestion: nextQuestion,
-    suggestActivity: suggestActivity,
-    topSimilarityOrder: topSimilarityOrder
+    stability: stability
   };
 })(typeof self !== 'undefined' ? self : globalThis);
