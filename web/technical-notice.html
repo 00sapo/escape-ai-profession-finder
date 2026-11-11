@@ -101,7 +101,8 @@
 
   <h2 id="title">Semantic similarity</h2>
   <p>Semantic similarity measures how closely profession titles relate in meaning. The pipeline converts English titles into embeddings, which are numeric representations of meaning. It precomputes a matrix of cosine similarities between all professions. Scores stay between zero and one, with negative cosine values set to zero. The browser loads this matrix locally and does not load an embedding model.</p>
-  <p>The encoder is <code>sentence-transformers/all-MiniLM-L6-v2</code>. Cosine similarity compares the directions of the numeric representations. The pipeline caches 384 numbers per profession and pins the model revision. Run <code>npm run build:semantic</code> from the project root to rebuild the matrix from cached vectors.</p>
+  <p>The encoder is OpenAI <code>text-embedding-3-large</code>. Cosine similarity compares the directions of the numeric representations. The pipeline caches 3,072 numbers per profession. It sends public profession titles to OpenAI only when it generates embeddings. The browser uses the precomputed matrix and does not receive the API key.</p>
+  <p>From the project root, run <code>npm run build:semantic</code> to rebuild the matrix from cached vectors without API requests.</p>
   <p>For candidate occupation <code>o</code> and chosen profession <code>r</code>, let <code>n<sub>ro</sub></code> count their shared activities. The count uses their full activity sets, not only the activities that the user selects.</p>
   <div class="formula" data-tex="n_{ro} = |A_r \cap A_o|, \quad w_{ro} = \frac{n_{ro}}{\sum_{q \in R} n_{qo}}, \quad t_o = \sum_{r \in R} w_{ro} S_{ro}">n<sub>ro</sub> = |A<sub>r</sub> ∩ A<sub>o</sub>|, w<sub>ro</sub> = n<sub>ro</sub> / Σ<sub>q ∈ R</sub> n<sub>qo</sub>, t<sub>o</sub> = Σ<sub>r ∈ R</sub> w<sub>ro</sub> S<sub>ro</sub></div>
   <p>Here <code>R</code> contains the chosen professions, and <code>S</code> is the precomputed matrix. The weights sum to one for each candidate with shared activities. If the denominator is zero, the semantic score is zero. Duplicate selections count once. These scores do not depend on the page language.</p>
@@ -142,13 +143,13 @@
     <table>
       <thead><tr><th>Activities n</th><th>Occupations</th><th>MAE</th><th>Within 0.05</th><th>Mean support</th></tr></thead>
       <tbody>
-        <tr><td>4</td><td>332</td><td>0.0487</td><td>0.627</td><td>1.90</td></tr>
-        <tr><td>10</td><td>318</td><td>0.0425</td><td>0.689</td><td>2.95</td></tr>
-        <tr><td>20</td><td>169</td><td>0.0385</td><td>0.746</td><td>3.58</td></tr>
+        <tr><td>4</td><td>332</td><td>0.0486</td><td>0.596</td><td>1.83</td></tr>
+        <tr><td>10</td><td>318</td><td>0.0427</td><td>0.679</td><td>2.99</td></tr>
+        <tr><td>20</td><td>169</td><td>0.0393</td><td>0.746</td><td>3.58</td></tr>
       </tbody>
     </table>
   </div>
-  <p>With 15 percent foreign activities and 20 declared activities, semantic validation gives MAE 0.0408 and 73.4 percent within 0.05. Both clean and noisy results meet the existing limits. The harness writes <code>data/dist/validation_report_semantic.json</code>.</p>
+  <p>With 15 percent foreign activities and 20 declared activities, semantic validation gives MAE 0.0402 and 72.2 percent within 0.05. Both clean and noisy results meet the existing limits. The harness writes <code>data/dist/validation_report_semantic.json</code>.</p>
 
   <h2 id="limits">What the validation does not show</h2>
   <ul>
@@ -183,7 +184,7 @@ npm run verify</code></pre>
     <li>Priority harness: <code>validation/priority_check.js</code>.</li>
     <li>Title check: <code>validation/title_check.js</code>.</li>
     <li>Semantic preprocessing: <code>pipeline/build_semantic.py</code>.</li>
-    <li>Embedding model: <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2">sentence-transformers/all-MiniLM-L6-v2</a>.</li>
+    <li>Embedding model: <a href="https://platform.openai.com/docs/models/text-embedding-3-large">OpenAI text-embedding-3-large</a>.</li>
     <li>Math rendering: KaTeX, MIT license, <code>web/vendor/katex</code>.</li>
   </ul>
 

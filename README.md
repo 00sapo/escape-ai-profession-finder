@@ -50,18 +50,20 @@ Make sure that the dataset files are valid without a rebuild:
 python3 pipeline/build_dataset.py --check
 ```
 
-The semantic matrix uses `sentence-transformers/all-MiniLM-L6-v2`.
+The semantic matrix uses OpenAI `text-embedding-3-large` with 3,072 dimensions.
 The pipeline stores the profession embeddings in
 `data/cache/semantic-embeddings.json.gz`.
-Cached builds need only Python 3 and do not download the model.
+Cached builds need only Python 3 and make no API requests.
 After a title or model change, refresh the embeddings.
-From the project root, create a Python environment and install the pinned dependencies:
+Set `OPENAI_API_KEY` in your environment or the project `.env` file.
+From the project root, regenerate the embeddings:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r pipeline/requirements-semantic.txt
-.venv/bin/python pipeline/build_semantic.py --refresh
+python3 pipeline/build_semantic.py --refresh
 ```
+
+Generation sends the public profession titles to OpenAI.
+The browser uses local files and does not receive the API key.
 
 To rebuild or inspect the matrix from cached embeddings, use these commands:
 
@@ -151,7 +153,7 @@ This mode uses semantic scores for candidate selection and combination weights.
 It keeps the application parameters fixed instead of tuning them again.
 The target profession supplies the semantic reference but remains excluded from candidates.
 The report is `data/dist/validation_report_semantic.json`.
-For 20 activities, mean absolute error is 0.0385, with 74.6% of estimates within 0.05.
+For 20 activities, mean absolute error is 0.0393, with 74.6% of estimates within 0.05.
 The test assumes that the user selects the correct profession.
 
 ## Privacy

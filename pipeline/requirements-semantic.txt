@@ -1,6 +1,0 @@
-# Only needed for initial embedding generation or build_semantic.py --refresh.
-# Cached builds and --check require Python's standard library only.
-numpy==2.2.4
-onnxruntime==1.23.2
-tokenizers==0.22.1
-huggingface-hub==0.36.0

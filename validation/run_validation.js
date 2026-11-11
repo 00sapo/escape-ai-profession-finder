@@ -374,7 +374,8 @@ function main() {
     thresholds: THRESHOLDS,
     semantic: SEMANTIC ? {
       model: semantic.model,
-      revision: semantic.revision,
+      provider: semantic.provider,
+      dimensions: semantic.dimensions,
       reference: 'target profession, excluded from candidates',
       weighting: 'full-profession shared activities, normalized per candidate'
     } : false,
