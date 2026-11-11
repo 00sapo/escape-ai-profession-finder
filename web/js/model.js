@@ -22,7 +22,7 @@
     iterations: 320,
     refineIterations: 240,
     learningRate: 0.7,
-    titleWeight: 0.3,
+    titleWeight: 0.75,
     titlePrior: 20,
     resamples: 24,
     bootstrapShare: 0.8
@@ -69,6 +69,48 @@
       exposure: exposure,
       gap: gap
     };
+  }
+
+  /* Each selected profession contributes in proportion to the activities
+   * that it shares with the candidate. No shared activities means no term. */
+  function semanticSimilarity(index, selected, semantic) {
+    var references = Array.from(new Set(selected));
+    if (references.length === 0) {
+      return null;
+    }
+    if (!semantic || semantic.codes.length !== index.nOcc ||
+        semantic.similarities.length !== index.nOcc) {
+      throw new Error('Missing or stale profession similarity matrix. Rebuild the semantic data.');
+    }
+    for (var o = 0; o < index.nOcc; o += 1) {
+      if (semantic.codes[o] !== index.dataset.occupations[o].c ||
+          semantic.similarities[o].length !== index.nOcc) {
+        throw new Error('Profession similarity matrix does not match the dataset. Rebuild the semantic data.');
+      }
+    }
+    var similarity = new Float64Array(index.nOcc);
+    var total = new Int32Array(index.nOcc);
+    var shared = new Int32Array(index.nOcc);
+    for (var r = 0; r < references.length; r += 1) {
+      var reference = references[r];
+      shared.fill(0);
+      var activities = index.occDwa[reference];
+      for (var d = 0; d < activities.length; d += 1) {
+        var occupations = index.dwaOcc[activities[d]];
+        for (var k = 0; k < occupations.length; k += 1) {
+          shared[occupations[k]] += 1;
+        }
+      }
+      var row = semantic.similarities[reference];
+      for (o = 0; o < index.nOcc; o += 1) {
+        similarity[o] += shared[o] * row[o];
+        total[o] += shared[o];
+      }
+    }
+    for (o = 0; o < index.nOcc; o += 1) {
+      similarity[o] = total[o] > 0 ? similarity[o] / total[o] : 0;
+    }
+    return similarity;
   }
 
   function maskFromEvidence(index, evidence) {
@@ -325,9 +367,8 @@
     };
   }
 
-  /* The title similarity is a ranking prior, not part of the activity
-   * likelihood. It blends the activity similarity with the fuzzy title score.
-   * With no title array the combined score equals the activity score. */
+  /* Semantic title scores supplement the activity likelihood.
+   * With no selected professions the combined score is activity-only. */
   function applyTitleFusion(scored, titleSimilarity, titleWeight) {
     var n = scored.similarity.length;
     var combined = new Float64Array(n);
@@ -786,6 +827,7 @@
     FREQUENCY_MIN: FREQUENCY_MIN,
     FREQUENCY_MAX: FREQUENCY_MAX,
     buildIndex: buildIndex,
+    semanticSimilarity: semanticSimilarity,
     scoreOccupations: scoreOccupations,
     fitBlend: fitBlend,
     fitBlendWeighted: fitBlendWeighted,

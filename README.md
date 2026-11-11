@@ -34,7 +34,7 @@ Then open `http://127.0.0.1:4173/index.html`.
 ## Rebuild the data
 
 ```sh
-python3 pipeline/build_dataset.py
+npm run build
 ```
 
 The script writes these files:
@@ -42,11 +42,32 @@ The script writes these files:
 - `data/dist/dataset.json.gz`
 - `data/dist/match_report.json`
 - `web/data/dataset.js`
+- `web/data/semantic.js`
 
-Check the files without a rebuild:
+Make sure that the dataset files are valid without a rebuild:
 
 ```sh
 python3 pipeline/build_dataset.py --check
+```
+
+The semantic matrix uses `sentence-transformers/all-MiniLM-L6-v2`.
+The pipeline stores the profession embeddings in
+`data/cache/semantic-embeddings.json.gz`.
+Cached builds need only Python 3 and do not download the model.
+After a title or model change, refresh the embeddings.
+From the project root, create a Python environment and install the pinned dependencies:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r pipeline/requirements-semantic.txt
+.venv/bin/python pipeline/build_semantic.py --refresh
+```
+
+To rebuild or inspect the matrix from cached embeddings, use these commands:
+
+```sh
+npm run build:semantic
+npm run check:semantic
 ```
 
 The machine translations live in `web/data/translations`. Rebuild them with:
@@ -89,12 +110,18 @@ the blend with exponentiated gradient ascent on the simplex. It then keeps the
 smallest support that carries most of the weight. The order of the declared
 activities supplies the evidence weights through the O*NET importance table.
 
-The ranking blends a fuzzy title similarity with a weight of 0.3. The matcher
-compares the chosen occupation titles with each occupation title. It folds case
-and diacritics, drops common words, and matches tokens by character bigrams.
-The blend also uses the title as a prior with strength 20. A title-dissimilar
-occupation gets a negative linear term, so its weight falls and the gap estimate
-changes. The prior does not hard-exclude occupations.
+The ranking uses 75% semantic similarity and 25% activity similarity.
+Semantic similarity measures how closely profession titles relate in meaning.
+The pipeline converts English titles into embeddings, which are numeric
+representations of meaning. It then computes a cosine similarity matrix.
+For each candidate, the app weights each chosen profession by its number
+of shared activities with that candidate. These weights sum to one.
+If no chosen profession shares an activity with the candidate, its semantic
+score is zero. The scores do not depend on the page language.
+
+The blend retains its prior with strength 20. A prior is an extra preference
+in the model. It now uses the semantic score instead of fuzzy title matching.
+Profession search retains fuzzy matching for typing errors.
 
 The model code is `web/js/model.js`. The technical notice at
 `web/technical-notice.html` gives the equations, the constants, the validation

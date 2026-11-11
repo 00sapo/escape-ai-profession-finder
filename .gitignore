@@ -1,5 +1,6 @@
 coverage/
-data/cache/
+data/cache/*
+!data/cache/semantic-embeddings.json.gz
 data/raw/
 .DS_Store
 *.log

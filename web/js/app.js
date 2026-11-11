@@ -20,7 +20,7 @@
     maxSupport: 6,
     learningRate: 0.4,
     stopStability: 0.604,
-    titleWeight: 0.3,
+    titleWeight: 0.75,
     titlePrior: 20
   };
 
@@ -770,28 +770,6 @@
     startQuestion();
   }
 
-  /* Fuzzy title similarity between every occupation and the chosen titles.
-   * The ranking uses it as a secondary signal, so occupations with similar
-   * terms stay apart even when their activities overlap. */
-  function titleSimilarityFor(occupationIndices) {
-    var references = occupationIndices.map(function (index) {
-      return occupationLabel(index);
-    });
-    var similarity = new Float64Array(dataset.occupations.length);
-    for (var o = 0; o < dataset.occupations.length; o += 1) {
-      var title = occupationLabel(o);
-      var best = 0;
-      for (var r = 0; r < references.length; r += 1) {
-        var value = fuzzy.similarity(references[r], title);
-        if (value > best) {
-          best = value;
-        }
-      }
-      similarity[o] = best;
-    }
-    return similarity;
-  }
-
   /* Selected activities are performed, unselected ones are denied. The
    * inferred ranking is the priority order. Frequency stays out of this path,
    * so the order alone carries the priority. */
@@ -822,7 +800,7 @@
       denied: Int32Array.from(denied),
       priority: Int32Array.from(performed),
       priorityImportance: dataset.priorityImportance,
-      titleSimilarity: titleSimilarityFor(state.selectedOccupations)
+      titleSimilarity: model.semanticSimilarity(index, state.selectedOccupations, self.__AI_EXPOSURE_SEMANTIC__)
     };
     state.performed = new Set(performed);
     state.denied = new Set(denied);
