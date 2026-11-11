@@ -449,6 +449,8 @@
   }
 
   function candidateSet(scored, limit) {
+    var similarity = scored.titleSimilarity && scored.titleWeight > 0
+      ? scored.combinedSimilarity : scored.scores;
     var order = [];
     for (var o = 0; o < scored.scores.length; o += 1) {
       if (scored.exclude && scored.exclude[o]) {
@@ -457,8 +459,8 @@
       order.push(o);
     }
     order.sort(function (a, b) {
-      if (scored.scores[b] !== scored.scores[a]) {
-        return scored.scores[b] - scored.scores[a];
+      if (similarity[b] !== similarity[a]) {
+        return similarity[b] - similarity[a];
       }
       var priorityB = scored.priorityScore ? scored.priorityScore[b] : 0;
       var priorityA = scored.priorityScore ? scored.priorityScore[a] : 0;

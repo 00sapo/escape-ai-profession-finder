@@ -119,6 +119,9 @@ of shared activities with that candidate. These weights sum to one.
 If no chosen profession shares an activity with the candidate, its semantic
 score is zero. The scores do not depend on the page language.
 
+The model selects its initial 60 candidates with that same combined score.
+Without semantic scores, it selects candidates by activity agreement alone.
+
 The blend retains its prior with strength 20. A prior is an extra preference
 in the model. It now uses the semantic score instead of fuzzy title matching.
 Profession search retains fuzzy matching for typing errors.
@@ -137,6 +140,19 @@ random denied activities to each fit. It tunes on 547 occupations and reports on
 and at least 65 percent of estimates within 0.05. The check uses the n = 20
 bucket. The technical notice gives the results and the limitations of the
 protocol.
+
+To include semantic similarity, use the current application parameters:
+
+```sh
+npm run validate -- --semantic
+```
+
+This mode uses semantic scores for candidate selection and combination weights.
+It keeps the application parameters fixed instead of tuning them again.
+The target profession supplies the semantic reference but remains excluded from candidates.
+The report is `data/dist/validation_report_semantic.json`.
+For 20 activities, mean absolute error is 0.0385, with 74.6% of estimates within 0.05.
+The test assumes that the user selects the correct profession.
 
 ## Privacy
 

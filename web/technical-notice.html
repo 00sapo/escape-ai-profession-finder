@@ -61,10 +61,10 @@
   <p>For non-empty evidence, <code>s<sub>o</sub></code> lies between 0.02 and 0.98. A single occupation that contains every performed activity scores 0.98. A single occupation that contains none of them scores 0.02.</p>
 
   <h2 id="score">Occupation score and candidate screening</h2>
-  <p>The activity score orders occupations. The title section below adds a secondary term to the final ranking. Ties use the priority score:</p>
+  <p>The combined semantic and activity score orders candidates when semantic scores are available. Otherwise, the activity score orders candidates. Ties use the priority score:</p>
   <div class="formula" data-tex="\pi_o = \sum_{r : d_r \in P \cap A_o} \frac{1}{r+1} - \sum_{r : d_r \in Q \cap A_o} \frac{1}{r+1}">π<sub>o</sub> = Σ<sub>r : d<sub>r</sub> ∈ P ∩ A<sub>o</sub></sub> 1 / (r + 1) − Σ<sub>r : d<sub>r</sub> ∈ Q ∩ A<sub>o</sub></sub> 1 / (r + 1)</div>
   <p>Here <code>r</code> is the 1-based position in the declared order.</p>
-  <p>The top 60 occupations by <code>ℓ<sub>o</sub></code> form the candidate set. The score and the similarity have the same order for a fixed total weight. The top 60 by score are therefore the top 60 by similarity.</p>
+  <p>The top 60 occupations by the combined score <code>s*<sub>o</sub></code> form the candidate set. The score uses 75% semantic similarity and 25% activity similarity. Without semantic scores, selection uses <code>ℓ<sub>o</sub></code>. Excluded occupations do not enter the candidate set.</p>
 
   <h2 id="blend">Convex blend</h2>
   <p>The declared profile is a convex combination of occupation profiles. The weights <code>θ</code> are not negative and sum to one. For the candidate set <code>C</code>, the probability that the blend contains activity <code>d</code> is:</p>
@@ -114,6 +114,7 @@
   <h2 id="validation">Validation</h2>
   <p>The harness splits the 879 occupations with an FNV-1a hash of the O*NET-SOC code. It tunes the two hyperparameters on 547 occupations. It reports on 332 held-out occupations.</p>
   <p>For each occupation, the harness draws a uniform random subset of <code>n</code> activities from the occupation. It treats them as performed and perturbs their order in blocks of 3 or 4. It adds 7 or 8 random denied activities that the occupation does not contain. It excludes the true occupation from the candidate pool, so the model cannot select it or copy its score. It supplies no frequency map. The weight comes from the priority table. It fits the model and compares the estimated exposure with the OECD exposure of the same occupation.</p>
+  <p>The following table shows the activity-only baseline.</p>
   <div class="table-wrap">
     <table>
       <thead>
@@ -135,11 +136,25 @@
   <p>With 15 percent of the sampled activities replaced by uniformly random activities, <code>n = 20</code> gives MAE 0.0430, within 0.05 0.686, and mean support 4.19.</p>
   <p>The thresholds are MAE at most 0.05 and at least 65 percent of estimates within 0.05. The check uses the <code>n = 20</code> bucket. The harness writes <code>data/dist/validation_report.json</code> and exits non-zero when a threshold is missed.</p>
   <p>The activity harness passes no semantic scores. Separate tests cover semantic weighting, zero overlap, matrix relationships, and ranking fusion. Run them with <code>npm run check:title</code>.</p>
+  <p>From the project root, run <code>npm run validate -- --semantic</code>. This mode includes semantic similarity in candidate selection and combination weights. It keeps the application parameters fixed: support limit 6, learning rate 0.4, semantic ranking weight 0.75, and prior strength 20. It uses the same split, random seeds, exclusions, and activity sampling as the baseline. The target profession supplies the semantic reference but remains excluded from candidates.</p>
+  <p>The following table shows the semantic results.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Activities n</th><th>Occupations</th><th>MAE</th><th>Within 0.05</th><th>Mean support</th></tr></thead>
+      <tbody>
+        <tr><td>4</td><td>332</td><td>0.0487</td><td>0.627</td><td>1.90</td></tr>
+        <tr><td>10</td><td>318</td><td>0.0425</td><td>0.689</td><td>2.95</td></tr>
+        <tr><td>20</td><td>169</td><td>0.0385</td><td>0.746</td><td>3.58</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>With 15 percent foreign activities and 20 declared activities, semantic validation gives MAE 0.0408 and 73.4 percent within 0.05. Both clean and noisy results meet the existing limits. The harness writes <code>data/dist/validation_report_semantic.json</code>.</p>
 
   <h2 id="limits">What the validation does not show</h2>
   <ul>
     <li>The true occupation is excluded from the candidate pool. The model cannot select it. The protocol still uses the true occupation's activities as evidence, so it measures estimation from a known profile, not generalization to unseen occupations.</li>
     <li>The harness samples evidence from the same occupation. It does not use real user profiles.</li>
+    <li>Semantic validation assumes that the user selects the correct profession. It does not measure results for incorrect profession choices or combinations of selected professions.</li>
     <li>The harness uses the priority table and 7 or 8 random denied activities. It does not exercise the frequency path. Separate tests cover semantic similarity. The frequency path has no test.</li>
     <li>The bootstrap resamples activities, not users. The standard deviation is a sensitivity measure, not a confidence interval.</li>
     <li>The likelihood is not identifiable. Occupations with equal or nested activity sets give the same fit. The sparsification rule selects one maximizer.</li>

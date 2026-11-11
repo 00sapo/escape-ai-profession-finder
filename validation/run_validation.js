@@ -20,10 +20,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 const DATASET = path.join(ROOT, 'data', 'dist', 'dataset.json.gz');
 const MODEL = path.join(ROOT, 'web', 'js', 'model.js');
-const FUZZY = path.join(ROOT, 'web', 'js', 'fuzzy.js');
-const TITLE = process.argv.includes('--title');
+const SEMANTIC_DATA = path.join(ROOT, 'web', 'data', 'semantic.js');
+const SEMANTIC = process.argv.includes('--semantic');
 const IGNORE_DENIED = process.argv.includes('--ignore-denied');
-const MODE = [TITLE ? 'title' : '', IGNORE_DENIED ? 'ignore_denied' : '']
+const MODE = [SEMANTIC ? 'semantic' : '', IGNORE_DENIED ? 'ignore_denied' : '']
   .filter(Boolean)
   .join('_');
 const REPORT = path.join(
@@ -36,27 +36,26 @@ const REPORT = path.join(
 const THRESHOLDS = { mae: 0.05, within: 0.65, tolerance: 0.05 };
 const SAMPLE_SIZES = [4, 5, 6, 8, 10, 12, 15, 20, 25];
 const NOISE_SHARE = 0.15;
-const TITLE_PRIORS = [1, 5, 10, 20];
 const GRID = [];
 for (const maxSupport of [4, 6, 8, 10]) {
   for (const learningRate of [0.4, 0.7, 1.0]) {
-    if (TITLE) {
-      for (const titlePrior of TITLE_PRIORS) {
-        GRID.push({ maxSupport, learningRate, titlePrior });
-      }
-    } else {
-      GRID.push({ maxSupport, learningRate });
-    }
+    GRID.push({ maxSupport, learningRate });
   }
 }
 
 function loadModel() {
-  new Function(fs.readFileSync(FUZZY, 'utf8')).call(globalThis);
   new Function(fs.readFileSync(MODEL, 'utf8')).call(globalThis);
-  if (!globalThis.AIExposureModel || !globalThis.AIExposureFuzzy) {
-    throw new Error('model.js or fuzzy.js did not publish its API');
+  if (!globalThis.AIExposureModel) {
+    throw new Error('model.js did not publish its API');
   }
-  return { model: globalThis.AIExposureModel, fuzzy: globalThis.AIExposureFuzzy };
+  let semantic = null;
+  if (SEMANTIC) {
+    const publish = new Function('self', fs.readFileSync(SEMANTIC_DATA, 'utf8'));
+    const scope = {};
+    publish(scope);
+    semantic = scope.__AI_EXPOSURE_SEMANTIC__;
+  }
+  return { model: globalThis.AIExposureModel, semantic };
 }
 
 function mulberry32(seed) {
@@ -261,7 +260,7 @@ function tune(index, model, tuning, seed, ignoreDenied, titleSimilarity) {
 }
 
 function main() {
-  const { model, fuzzy } = loadModel();
+  const { model, semantic } = loadModel();
   const bundle = JSON.parse(zlib.gunzipSync(fs.readFileSync(DATASET)).toString('utf8'));
   const index = model.buildIndex(bundle);
 
@@ -270,15 +269,11 @@ function main() {
     if (titleCache.has(occupation)) {
       return titleCache.get(occupation);
     }
-    const reference = bundle.occupations[occupation].t;
-    const values = new Float64Array(bundle.occupations.length);
-    for (let o = 0; o < bundle.occupations.length; o += 1) {
-      values[o] = fuzzy.similarity(reference, bundle.occupations[o].t);
-    }
+    const values = model.semanticSimilarity(index, [occupation], semantic);
     titleCache.set(occupation, values);
     return values;
   }
-  const titleOption = TITLE ? titleSimilarityFor : null;
+  const titleOption = SEMANTIC ? titleSimilarityFor : null;
 
   const tuning = [];
   const heldout = [];
@@ -294,13 +289,15 @@ function main() {
   console.log(`occupations ${index.nOcc}, activities ${index.nDwa}`);
   console.log(`split: tuning ${tuning.length}, held out ${heldout.length}`);
   console.log(
-    `mode: ${TITLE ? 'title prior' : 'no title'}, ` +
+    `mode: ${SEMANTIC ? 'semantic candidate selection and blend prior' : 'activities only'}, ` +
       `${IGNORE_DENIED ? 'ignore denied activities' : 'use denied activities'}`
   );
 
-  const grid = tune(index, model, tuning, 1234, IGNORE_DENIED, titleOption);
-  const best = grid[0].parameters;
-  console.log(`tuned parameters: ${JSON.stringify(best)}`);
+  const grid = SEMANTIC ? [] : tune(index, model, tuning, 1234, IGNORE_DENIED, titleOption);
+  const best = SEMANTIC
+    ? { maxSupport: 6, learningRate: 0.4, titleWeight: 0.75, titlePrior: 20 }
+    : grid[0].parameters;
+  console.log(`${SEMANTIC ? 'application' : 'tuned'} parameters: ${JSON.stringify(best)}`);
   for (const entry of grid.slice(0, 4)) {
     console.log(
       `  ${JSON.stringify(entry.parameters)} mae ${entry.mae.toFixed(4)} within ${entry.within.toFixed(3)}`
@@ -375,7 +372,12 @@ function main() {
   const report = {
     generated: bundle.meta.generated,
     thresholds: THRESHOLDS,
-    title: TITLE,
+    semantic: SEMANTIC ? {
+      model: semantic.model,
+      revision: semantic.revision,
+      reference: 'target profession, excluded from candidates',
+      weighting: 'full-profession shared activities, normalized per candidate'
+    } : false,
     ignoreDenied: IGNORE_DENIED,
     split: { tuning: tuning.length, heldout: heldout.length },
     parameters: best,

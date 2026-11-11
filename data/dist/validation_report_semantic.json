@@ -1,0 +1,275 @@
+{
+  "generated": "2026-11-08T09:26:19Z",
+  "thresholds": {
+    "mae": 0.05,
+    "within": 0.65,
+    "tolerance": 0.05
+  },
+  "semantic": {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "reference": "target profession, excluded from candidates",
+    "weighting": "full-profession shared activities, normalized per candidate"
+  },
+  "ignoreDenied": false,
+  "split": {
+    "tuning": 547,
+    "heldout": 332
+  },
+  "parameters": {
+    "maxSupport": 6,
+    "learningRate": 0.4,
+    "titleWeight": 0.75,
+    "titlePrior": 20
+  },
+  "grid": [],
+  "tuning": [
+    {
+      "size": 4,
+      "count": 547,
+      "mae": 0.049050932990091695,
+      "within": 0.6124314442413162,
+      "meanSupport": 1.8715258555148764,
+      "stability": 0
+    },
+    {
+      "size": 5,
+      "count": 547,
+      "mae": 0.051713307584498686,
+      "within": 0.5868372943327239,
+      "meanSupport": 2.113989682863043,
+      "stability": 0.7566455091179165
+    },
+    {
+      "size": 6,
+      "count": 543,
+      "mae": 0.0497595896321305,
+      "within": 0.6022099447513812,
+      "meanSupport": 2.3267120549993177,
+      "stability": 0.6999678204927412
+    },
+    {
+      "size": 8,
+      "count": 541,
+      "mae": 0.04621736423483731,
+      "within": 0.6321626617375231,
+      "meanSupport": 2.6512570123807113,
+      "stability": 0.6613712272392087
+    },
+    {
+      "size": 10,
+      "count": 531,
+      "mae": 0.04621687693693441,
+      "within": 0.6346516007532956,
+      "meanSupport": 2.9574927877352986,
+      "stability": 0.6132852707224224
+    },
+    {
+      "size": 12,
+      "count": 499,
+      "mae": 0.045821274929853426,
+      "within": 0.655310621242485,
+      "meanSupport": 3.1658551684278127,
+      "stability": 0.5629138120847129
+    },
+    {
+      "size": 15,
+      "count": 427,
+      "mae": 0.04489152718752218,
+      "within": 0.65807962529274,
+      "meanSupport": 3.4384502617784967,
+      "stability": 0.513705551015653
+    },
+    {
+      "size": 20,
+      "count": 278,
+      "mae": 0.042948501679049685,
+      "within": 0.6510791366906474,
+      "meanSupport": 3.703175245637669,
+      "stability": 0.45627412653267435
+    },
+    {
+      "size": 25,
+      "count": 144,
+      "mae": 0.03843724100951761,
+      "within": 0.7361111111111112,
+      "meanSupport": 3.8339768975666573,
+      "stability": 0.40952896464616306
+    }
+  ],
+  "heldout": [
+    {
+      "size": 4,
+      "count": 332,
+      "mae": 0.04870727122222299,
+      "within": 0.6265060240963856,
+      "meanSupport": 1.8969323682266692,
+      "stability": 0
+    },
+    {
+      "size": 5,
+      "count": 332,
+      "mae": 0.04897172783316241,
+      "within": 0.6385542168674698,
+      "meanSupport": 2.0765915728983417,
+      "stability": 0.733260293670103
+    },
+    {
+      "size": 6,
+      "count": 331,
+      "mae": 0.04708864138180374,
+      "within": 0.6344410876132931,
+      "meanSupport": 2.3479070209123156,
+      "stability": 0.700921729131441
+    },
+    {
+      "size": 8,
+      "count": 325,
+      "mae": 0.04394136227061363,
+      "within": 0.6707692307692308,
+      "meanSupport": 2.7106957293745237,
+      "stability": 0.6707419446683143
+    },
+    {
+      "size": 10,
+      "count": 318,
+      "mae": 0.042501524815225934,
+      "within": 0.6886792452830188,
+      "meanSupport": 2.9465439218459846,
+      "stability": 0.6090387130445588
+    },
+    {
+      "size": 12,
+      "count": 304,
+      "mae": 0.04320874234719432,
+      "within": 0.6677631578947368,
+      "meanSupport": 3.158167579905212,
+      "stability": 0.5626598281415577
+    },
+    {
+      "size": 15,
+      "count": 254,
+      "mae": 0.04180230370199906,
+      "within": 0.6771653543307087,
+      "meanSupport": 3.340003065617432,
+      "stability": 0.5085566619947242
+    },
+    {
+      "size": 20,
+      "count": 169,
+      "mae": 0.0384741177238965,
+      "within": 0.7455621301775148,
+      "meanSupport": 3.5780831914467215,
+      "stability": 0.46103421047312204
+    },
+    {
+      "size": 25,
+      "count": 91,
+      "mae": 0.03649221222836276,
+      "within": 0.7692307692307693,
+      "meanSupport": 3.6621568253218735,
+      "stability": 0.4019970767081558
+    }
+  ],
+  "heldoutNoisy": {
+    "noise": 0.15,
+    "table": [
+      {
+        "size": 4,
+        "count": 332,
+        "mae": 0.05137667262793059,
+        "within": 0.6054216867469879,
+        "meanSupport": 1.8403645898326133,
+        "stability": 0
+      },
+      {
+        "size": 5,
+        "count": 332,
+        "mae": 0.04550185841553371,
+        "within": 0.6566265060240963,
+        "meanSupport": 1.9899639687365804,
+        "stability": 0.7664301896441224
+      },
+      {
+        "size": 6,
+        "count": 331,
+        "mae": 0.046714938557232855,
+        "within": 0.6646525679758308,
+        "meanSupport": 2.3084868043595534,
+        "stability": 0.7396501411354816
+      },
+      {
+        "size": 8,
+        "count": 325,
+        "mae": 0.048247910659351544,
+        "within": 0.6430769230769231,
+        "meanSupport": 2.754803534983454,
+        "stability": 0.7162537334493573
+      },
+      {
+        "size": 10,
+        "count": 318,
+        "mae": 0.04552343511798948,
+        "within": 0.6635220125786163,
+        "meanSupport": 3.0146568738379633,
+        "stability": 0.6680042865604202
+      },
+      {
+        "size": 12,
+        "count": 304,
+        "mae": 0.04355547691878338,
+        "within": 0.694078947368421,
+        "meanSupport": 3.1378663880769877,
+        "stability": 0.6341853803137444
+      },
+      {
+        "size": 15,
+        "count": 254,
+        "mae": 0.03978930627965933,
+        "within": 0.7007874015748031,
+        "meanSupport": 3.488901587231445,
+        "stability": 0.5961655376422736
+      },
+      {
+        "size": 20,
+        "count": 169,
+        "mae": 0.0407640532079568,
+        "within": 0.7337278106508875,
+        "meanSupport": 3.6800435658087594,
+        "stability": 0.544438724391584
+      },
+      {
+        "size": 25,
+        "count": 91,
+        "mae": 0.03948436377165931,
+        "within": 0.7252747252747253,
+        "meanSupport": 3.680312249789722,
+        "stability": 0.49128888171170554
+      }
+    ]
+  },
+  "derived": {
+    "empiricalMinimum": 12,
+    "productFloor": 10,
+    "operatingFloor": 12,
+    "stopStability": 0.563,
+    "stopRule": "stop when at least 12 activities are declared and the blend moves less than 0.563 in total variation for two consecutive answers"
+  },
+  "heldoutAt20": {
+    "size": 20,
+    "count": 169,
+    "mae": 0.0384741177238965,
+    "within": 0.7455621301775148,
+    "meanSupport": 3.5780831914467215,
+    "stability": 0.46103421047312204
+  },
+  "noisyAt20": {
+    "size": 20,
+    "count": 169,
+    "mae": 0.0407640532079568,
+    "within": 0.7337278106508875,
+    "meanSupport": 3.6800435658087594,
+    "stability": 0.544438724391584
+  },
+  "pass": true
+}

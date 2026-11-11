@@ -137,6 +137,41 @@ function checkFusion(model, index, bundle, semantic, physician, medical) {
   assert.ok(distinguishesWeights, 'fusion fixture must distinguish semantic and activity weights');
 }
 
+function checkCandidateScreening(model) {
+  const bundle = {
+    dwas: [{}, {}, {}, {}],
+    occupations: Array.from({ length: 62 }, (_, i) => ({
+      c: String(i), t: String(i), dwa: i === 61 ? [1, 2] : [0, 2],
+      e: i === 61 ? 1 : 0, g: i === 61 ? 10 : 0
+    }))
+  };
+  const index = model.buildIndex(bundle);
+  const evidence = { performed: [0], denied: [3] };
+  const titleSimilarity = new Float64Array(62);
+  titleSimilarity[61] = 1;
+  const plain = model.fitBlendWeighted(index, evidence);
+  const semantic = model.fitBlendWeighted(index, { ...evidence, titleSimilarity });
+  assert.deepEqual(Array.from(plain.candidates), Array.from({ length: 60 }, (_, i) => i),
+    'activity-only screening keeps its deterministic tie order');
+  assert.equal(semantic.candidates[0], 61,
+    'semantic match below the activity cutoff must enter the candidate pool');
+  assert.equal(semantic.candidates.length, 60);
+  assert.ok(!semantic.candidates.includes(59),
+    'semantic admission must displace a weaker combined match');
+  const at = semantic.support.indexOf(61);
+  assert.ok(at >= 0 && semantic.weights[at] > 0,
+    'admitted semantic candidate must participate in the estimated blend');
+  assert.ok(semantic.gap > plain.gap,
+    'semantic candidate screening must affect the estimated profession');
+  const excluded = model.fitBlendWeighted(index, {
+    ...evidence, titleSimilarity, exclude: [61]
+  });
+  assert.ok(!excluded.candidates.includes(61), 'semantic screening must respect exclusions');
+  const activity = model.fitBlendWeighted(index, { ...evidence, titleSimilarity }, { titleWeight: 0 });
+  assert.deepEqual(Array.from(activity.candidates), Array.from(plain.candidates),
+    'zero semantic weight must preserve activity-only screening');
+}
+
 function main() {
   const { bundle, fuzzy, model, semantic } = loadContext();
   assert.ok(fuzzy.similarity('Recercatore in informatica', 'Ricercatore in informatica') >= 0.8,
@@ -144,7 +179,8 @@ function main() {
   checkOverlapWeighting(model);
   const { physician, medical } = checkArtifact(bundle, semantic);
   checkFusion(model, model.buildIndex(bundle), bundle, semantic, physician, medical);
-  console.log('PASS semantic overlap weighting, cosine artifact, 0.75/0.25 fusion, and fuzzy search');
+  checkCandidateScreening(model);
+  console.log('PASS semantic overlap weighting, cosine artifact, 0.75/0.25 fusion, candidate screening, and fuzzy search');
 }
 
 main();
